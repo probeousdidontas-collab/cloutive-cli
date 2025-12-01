@@ -34,8 +34,9 @@
     "codebuff",
     "ai"
   ],
-  "author": "Cloutive",
-  "license": "MIT",
+  "author": "Ozan Turksever <ozan.turksever@gmail.com>",
+  "license": "UNLICENSED",
+  "private": true,
   "engines": {
     "bun": ">=1.0.0"
   }

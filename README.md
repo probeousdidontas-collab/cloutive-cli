@@ -155,4 +155,4 @@ After a successful run, you'll see:
 
 ## License
 
-MIT
+Proprietary - All rights reserved.
