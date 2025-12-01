@@ -7,3 +7,16 @@ devenv.local.nix
 
 # pre-commit
 .pre-commit-config.yaml
+
+# Node
+node_modules/
+dist/
+*.log
+
+# Logs
+logs/
+
+# Reports (optional - uncomment to ignore generated reports)
+# *.report.md
+# *-report.md
+# *-snapshot.md
