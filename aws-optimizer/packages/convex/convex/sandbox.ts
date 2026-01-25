@@ -373,6 +373,314 @@ export const getExecutionStatus = action({
     runId: v.string(),
   },
   handler: async (ctx, args) => {
-    return await actionRetrier.status(ctx, args.runId as `${string}|${string}`);
+    // Cast to the expected RunId type for action-retrier
+    return await actionRetrier.status(ctx, args.runId as Parameters<typeof actionRetrier.status>[1]);
+  },
+});
+
+// ============================================================================
+// Credential Validation Actions
+// ============================================================================
+
+/**
+ * Result of credential validation
+ */
+interface CredentialValidationResult {
+  valid: boolean;
+  identity: {
+    account: string;
+    arn: string;
+    userId: string;
+  } | null;
+  errorMessage?: string;
+}
+
+/**
+ * Result of permission check
+ */
+interface PermissionCheckResult {
+  permission: string;
+  granted: boolean;
+  errorMessage?: string;
+}
+
+/**
+ * Validate AWS credentials by calling sts get-caller-identity.
+ * This is an internal action that bypasses the normal account status check
+ * since we're validating credentials for a pending account.
+ */
+export const validateCredentialsIdentity = internalAction({
+  args: {
+    encryptedAccessKeyId: v.string(),
+    encryptedSecretAccessKey: v.string(),
+    encryptedSessionToken: v.optional(v.string()),
+    region: v.optional(v.string()),
+  },
+  returns: v.object({
+    valid: v.boolean(),
+    identity: v.union(
+      v.object({
+        account: v.string(),
+        arn: v.string(),
+        userId: v.string(),
+      }),
+      v.null()
+    ),
+    errorMessage: v.optional(v.string()),
+  }),
+  handler: async (_ctx, args): Promise<CredentialValidationResult> => {
+    // Validate sandbox worker URL is configured
+    if (!SANDBOX_WORKER_URL) {
+      return {
+        valid: false,
+        identity: null,
+        errorMessage: "SANDBOX_WORKER_URL environment variable is not set",
+      };
+    }
+
+    // Decrypt credentials
+    const credentials: AwsCredentials = {
+      accessKeyId: decryptCredential(args.encryptedAccessKeyId),
+      secretAccessKey: decryptCredential(args.encryptedSecretAccessKey),
+      sessionToken: args.encryptedSessionToken
+        ? decryptCredential(args.encryptedSessionToken)
+        : undefined,
+      region: args.region || "us-east-1",
+    };
+
+    try {
+      // Call sandbox worker to execute sts get-caller-identity
+      const response = await fetch(`${SANDBOX_WORKER_URL}/execute`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          command: "aws sts get-caller-identity --output json",
+          credentials,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        return {
+          valid: false,
+          identity: null,
+          errorMessage: `Sandbox worker error: ${response.status} - ${errorText}`,
+        };
+      }
+
+      const result: SandboxExecuteResponse = await response.json();
+
+      if (result.exitCode !== 0 || !result.success) {
+        // Parse AWS error message if present
+        let errorMessage = "Failed to verify credentials";
+        if (result.stderr) {
+          // Extract useful error info from AWS CLI stderr
+          if (result.stderr.includes("InvalidClientTokenId")) {
+            errorMessage = "Invalid access key ID";
+          } else if (result.stderr.includes("SignatureDoesNotMatch")) {
+            errorMessage = "Invalid secret access key";
+          } else if (result.stderr.includes("ExpiredToken")) {
+            errorMessage = "Credentials have expired";
+          } else if (result.stderr.includes("AccessDenied")) {
+            errorMessage = "Access denied - credentials may be invalid or lack permissions";
+          } else {
+            errorMessage = result.stderr.substring(0, 200);
+          }
+        }
+        return {
+          valid: false,
+          identity: null,
+          errorMessage,
+        };
+      }
+
+      // Parse the identity response
+      try {
+        const identity = JSON.parse(result.stdout);
+        return {
+          valid: true,
+          identity: {
+            account: identity.Account || "",
+            arn: identity.Arn || "",
+            userId: identity.UserId || "",
+          },
+        };
+      } catch {
+        return {
+          valid: false,
+          identity: null,
+          errorMessage: "Failed to parse identity response",
+        };
+      }
+    } catch (error) {
+      return {
+        valid: false,
+        identity: null,
+        errorMessage: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  },
+});
+
+/**
+ * Check if credentials have Cost Explorer permissions.
+ * Uses a minimal GetCostAndUsage call to verify access.
+ */
+export const checkCostExplorerPermission = internalAction({
+  args: {
+    encryptedAccessKeyId: v.string(),
+    encryptedSecretAccessKey: v.string(),
+    encryptedSessionToken: v.optional(v.string()),
+    region: v.optional(v.string()),
+  },
+  returns: v.object({
+    permission: v.string(),
+    granted: v.boolean(),
+    errorMessage: v.optional(v.string()),
+  }),
+  handler: async (_ctx, args): Promise<PermissionCheckResult> => {
+    if (!SANDBOX_WORKER_URL) {
+      return {
+        permission: "ce:GetCostAndUsage",
+        granted: false,
+        errorMessage: "SANDBOX_WORKER_URL environment variable is not set",
+      };
+    }
+
+    // Decrypt credentials
+    const credentials: AwsCredentials = {
+      accessKeyId: decryptCredential(args.encryptedAccessKeyId),
+      secretAccessKey: decryptCredential(args.encryptedSecretAccessKey),
+      sessionToken: args.encryptedSessionToken
+        ? decryptCredential(args.encryptedSessionToken)
+        : undefined,
+      region: args.region || "us-east-1",
+    };
+
+    try {
+      // Build a minimal Cost Explorer query for the last day
+      // This tests if we have ce:GetCostAndUsage permission
+      const today = new Date();
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      
+      const startDate = yesterday.toISOString().split("T")[0];
+      const endDate = today.toISOString().split("T")[0];
+
+      const command = `aws ce get-cost-and-usage --time-period Start=${startDate},End=${endDate} --granularity DAILY --metrics BlendedCost --output json`;
+
+      const response = await fetch(`${SANDBOX_WORKER_URL}/execute`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          command,
+          credentials,
+        }),
+      });
+
+      if (!response.ok) {
+        return {
+          permission: "ce:GetCostAndUsage",
+          granted: false,
+          errorMessage: `Sandbox worker error: ${response.status}`,
+        };
+      }
+
+      const result: SandboxExecuteResponse = await response.json();
+
+      if (result.exitCode === 0 && result.success) {
+        return {
+          permission: "ce:GetCostAndUsage",
+          granted: true,
+        };
+      }
+
+      // Parse the error to give helpful feedback
+      let errorMessage = "Cost Explorer access denied";
+      if (result.stderr) {
+        if (result.stderr.includes("AccessDeniedException")) {
+          errorMessage = "Missing ce:GetCostAndUsage permission. Please ensure your IAM user/role has Cost Explorer access.";
+        } else if (result.stderr.includes("OptInRequired")) {
+          errorMessage = "Cost Explorer is not enabled. Please enable Cost Explorer in the AWS Console.";
+        } else {
+          errorMessage = result.stderr.substring(0, 200);
+        }
+      }
+
+      return {
+        permission: "ce:GetCostAndUsage",
+        granted: false,
+        errorMessage,
+      };
+    } catch (error) {
+      return {
+        permission: "ce:GetCostAndUsage",
+        granted: false,
+        errorMessage: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  },
+});
+
+/**
+ * Update credential validation status in the database.
+ */
+export const updateCredentialValidationStatus = internalMutation({
+  args: {
+    awsAccountId: v.id("awsAccounts"),
+    validationStatus: v.union(
+      v.literal("healthy"),
+      v.literal("expiring"),
+      v.literal("expired"),
+      v.literal("invalid"),
+      v.literal("unknown")
+    ),
+    validationMessage: v.optional(v.string()),
+    accountStatus: v.union(
+      v.literal("active"),
+      v.literal("inactive"),
+      v.literal("pending"),
+      v.literal("error")
+    ),
+    verifiedAccountNumber: v.optional(v.string()),
+  },
+  returns: v.object({ success: v.boolean() }),
+  handler: async (ctx, args): Promise<{ success: boolean }> => {
+    const now = Date.now();
+
+    // Update credentials
+    const credentials = await ctx.db
+      .query("awsCredentials")
+      .withIndex("by_awsAccount", (q) => q.eq("awsAccountId", args.awsAccountId))
+      .first();
+
+    if (credentials) {
+      const credentialUpdates: Record<string, unknown> = {
+        validationStatus: args.validationStatus,
+        validationMessage: args.validationMessage,
+        lastValidatedAt: now,
+        updatedAt: now,
+      };
+      
+      // Store verified account number if provided
+      if (args.verifiedAccountNumber) {
+        credentialUpdates.verifiedAccountNumber = args.verifiedAccountNumber;
+      }
+      
+      await ctx.db.patch(credentials._id, credentialUpdates);
+    }
+
+    // Update account status
+    await ctx.db.patch(args.awsAccountId, {
+      status: args.accountStatus,
+      lastVerifiedAt: args.accountStatus === "active" ? now : undefined,
+      updatedAt: now,
+    });
+
+    return { success: true };
   },
 });

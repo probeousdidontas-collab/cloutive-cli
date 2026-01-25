@@ -195,7 +195,7 @@ describe("US-023: AWS Accounts Management Page", () => {
       });
     });
 
-    test("should have tabs for IAM Role and Access Key in modal", async () => {
+    test("should have tabs for IAM Role, Upload File, and Access Key in modal", async () => {
       renderWithProviders(<AccountsPage />);
       
       const connectButton = screen.getByRole("button", { name: /connect account/i });

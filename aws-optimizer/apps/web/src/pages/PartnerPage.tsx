@@ -35,16 +35,10 @@ import {
 } from "@tabler/icons-react";
 import { useQuery, useMutation } from "convex/react";
 import { useNavigate } from "@tanstack/react-router";
-
-// API placeholder - in production, import from Convex generated API
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const api: any = {
-  partner: {
-    listClientOrganizations: "api.partner.listClientOrganizations",
-    createClientOrganization: "api.partner.createClientOrganization",
-    generateAggregateReport: "api.partner.generateAggregateReport",
-  },
-};
+import { api } from "@aws-optimizer/convex/convex/_generated/api";
+import type { Id } from "@aws-optimizer/convex/convex/_generated/dataModel";
+import { showSuccessToast, showErrorToast } from "../lib/notifications";
+import { useSession } from "../lib/auth-client";
 
 interface ClientOrganization {
   _id: string;
@@ -88,6 +82,10 @@ function capitalizeFirst(str: string): string {
 
 export function PartnerPage() {
   const navigate = useNavigate();
+  const { data: session } = useSession();
+  
+  // Get user ID from session for partner operations
+  const userId = session?.user?.id as Id<"users"> | undefined;
 
   // Modal state
   const [modalOpened, { open: openModal, close: closeModal }] = useDisclosure(false);
@@ -101,7 +99,12 @@ export function PartnerPage() {
   const [anonymize, setAnonymize] = useState(false);
 
   // Fetch client organizations
-  const clientOrganizations = useQuery(api.partner.listClientOrganizations) as ClientOrganization[] | undefined;
+  // These APIs require partnerId from the authenticated user
+  const clientOrganizationsData = useQuery(
+    api.partner.listClientOrganizations,
+    userId ? { partnerId: userId } : "skip"
+  );
+  const clientOrganizations = clientOrganizationsData as ClientOrganization[] | undefined;
 
   // Mutation for creating client org
   const createClientOrg = useMutation(api.partner.createClientOrganization);
@@ -124,13 +127,23 @@ export function PartnerPage() {
 
   // Handle create client org
   const handleCreateClientOrg = useCallback(async () => {
-    await createClientOrg({
-      organizationName: orgName,
-      clientEmail: clientEmail,
-    });
-    closeModal();
-    resetForm();
-  }, [orgName, clientEmail, createClientOrg, closeModal, resetForm]);
+    if (!userId) {
+      showErrorToast("User not authenticated");
+      return;
+    }
+    try {
+      await createClientOrg({
+        partnerId: userId,
+        organizationName: orgName,
+        clientEmail: clientEmail,
+      });
+      showSuccessToast(`Client organization "${orgName}" created`);
+      closeModal();
+      resetForm();
+    } catch {
+      showErrorToast("Failed to create client organization");
+    }
+  }, [userId, orgName, clientEmail, createClientOrg, closeModal, resetForm]);
 
   // Calculate aggregate stats
   const aggregateStats = useMemo(() => {
@@ -166,17 +179,25 @@ export function PartnerPage() {
 
   // Handle generate report
   const handleGenerateReport = useCallback(async () => {
-    // Note: In production, partnerId would come from auth context
-    // For now, we pass the report configuration and the backend
-    // will get the user from the session
-    await generateAggregateReport({
-      reportType,
-      includeAllClients,
-      anonymize,
-    });
-    closeReportModal();
-    resetReportForm();
-  }, [reportType, includeAllClients, anonymize, generateAggregateReport, closeReportModal, resetReportForm]);
+    if (!userId) {
+      showErrorToast("User not authenticated");
+      return;
+    }
+    try {
+      await generateAggregateReport({
+        partnerId: userId,
+        reportType,
+        includeAllClients,
+        clientIds: undefined, // Include all clients when includeAllClients is true
+        anonymize,
+      });
+      showSuccessToast("Report generation started");
+      closeReportModal();
+      resetReportForm();
+    } catch {
+      showErrorToast("Failed to generate report");
+    }
+  }, [userId, reportType, includeAllClients, anonymize, generateAggregateReport, closeReportModal, resetReportForm]);
 
   // Handle switching to client org context
   const handleManageOrg = useCallback(

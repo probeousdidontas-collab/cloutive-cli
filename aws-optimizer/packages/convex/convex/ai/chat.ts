@@ -14,7 +14,7 @@ import { v } from "convex/values";
 import { action, internalAction, query, mutation } from "../_generated/server";
 import { internal, components } from "../_generated/api";
 import { awsCostAgent } from "./awsCostAgent";
-import { requireAuth, requireAuthAction } from "../functions";
+import { requireAuth, requireAuthAction, getAuthenticatedUserId } from "../functions";
 import { listMessages, saveMessage } from "@convex-dev/agent";
 import { paginationOptsValidator } from "convex/server";
 import { checkRateLimit } from "../rateLimit";
@@ -122,6 +122,7 @@ export const streamMessage = action({
 /**
  * List messages in a thread.
  * Supports pagination.
+ * Returns empty page if user is not authenticated or thread not found.
  */
 export const listThreadMessages = query({
   args: {
@@ -129,18 +130,35 @@ export const listThreadMessages = query({
     paginationOpts: paginationOptsValidator,
   },
   handler: async (ctx, args) => {
-    const userId = await requireAuth(ctx);
+    const userId = await getAuthenticatedUserId(ctx);
+    
+    // Return empty page if not authenticated
+    if (!userId) {
+      return {
+        page: [],
+        isDone: true,
+        continueCursor: null,
+      };
+    }
 
     const thread = await ctx.runQuery(components.agent.threads.getThread, {
       threadId: args.threadId as never,
     });
 
     if (!thread) {
-      throw new Error("Thread not found");
+      return {
+        page: [],
+        isDone: true,
+        continueCursor: null,
+      };
     }
 
     if (thread.userId !== userId) {
-      throw new Error("Unauthorized: Cannot view another user's messages");
+      return {
+        page: [],
+        isDone: true,
+        continueCursor: null,
+      };
     }
 
     const messages = await listMessages(ctx, components.agent, {

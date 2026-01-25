@@ -65,6 +65,50 @@ export const tables = {
     privateKey: v.string(),
     createdAt: v.number(),
   }),
+
+  // ============================================================================
+  // Organization Plugin Tables
+  // ============================================================================
+
+  // Organizations table - stores organization entities
+  organization: defineTable({
+    name: v.string(),
+    slug: v.optional(v.union(v.null(), v.string())),
+    logo: v.optional(v.union(v.null(), v.string())),
+    metadata: v.optional(v.union(v.null(), v.string())), // JSON string for additional data
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("slug", ["slug"])
+    .index("name", ["name"]),
+
+  // Members table - links users to organizations with roles
+  member: defineTable({
+    organizationId: v.string(),
+    userId: v.string(),
+    role: v.string(), // owner, admin, member, or custom roles
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("organizationId", ["organizationId"])
+    .index("userId", ["userId"])
+    .index("organizationId_userId", ["organizationId", "userId"]),
+
+  // Invitations table - pending invitations to join organizations
+  invitation: defineTable({
+    organizationId: v.string(),
+    email: v.string(),
+    role: v.string(),
+    status: v.string(), // pending, accepted, canceled, expired
+    inviterId: v.string(), // User who sent the invitation
+    expiresAt: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("organizationId", ["organizationId"])
+    .index("email", ["email"])
+    .index("organizationId_email", ["organizationId", "email"])
+    .index("status", ["status"]),
 };
 
 const schema = defineSchema(tables);

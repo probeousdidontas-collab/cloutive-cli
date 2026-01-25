@@ -1,6 +1,12 @@
 import { convexTest } from "convex-test";
 import type { Id } from "./_generated/dataModel";
 
+// Type aliases for convex-test to avoid circular imports
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type TestConvex = any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type TestCtx = any;
+
 // Re-export Id type for use in tests
 export type { Id };
 
@@ -80,7 +86,7 @@ export async function createMockOrganization(
   const plan = options.plan ?? "free";
   const settings = options.settings ?? {};
 
-  const orgId = await t.run(async (ctx) => {
+  const orgId = await t.run(async (ctx: TestCtx) => {
     return await ctx.db.insert("organizations", {
       name,
       slug,
@@ -126,7 +132,7 @@ export async function createMockUser(
   const status = options.status ?? "active";
   const emailVerified = options.emailVerified ?? true;
 
-  const userId = await t.run(async (ctx) => {
+  const userId = await t.run(async (ctx: TestCtx) => {
     return await ctx.db.insert("users", {
       email,
       name,
@@ -168,7 +174,7 @@ export async function createMockOrgMember(
   const now = Date.now();
   const role = options.role ?? "member";
 
-  const memberId = await t.run(async (ctx) => {
+  const memberId = await t.run(async (ctx: TestCtx) => {
     return await ctx.db.insert("orgMembers", {
       organizationId: options.organizationId,
       userId: options.userId,
@@ -257,7 +263,7 @@ export async function createMockOrgInvitation(
   const role = options.role ?? "member";
   const status = options.status ?? "pending";
 
-  const invitationId = await t.run(async (ctx) => {
+  const invitationId = await t.run(async (ctx: TestCtx) => {
     return await ctx.db.insert("orgInvitations", {
       organizationId: options.organizationId,
       email: options.email,
@@ -319,7 +325,7 @@ export async function createMockAwsAccount(
   const connectionType = options.connectionType ?? "iam_role";
   const status = options.status ?? "active";
 
-  const awsAccountId = await t.run(async (ctx) => {
+  const awsAccountId = await t.run(async (ctx: TestCtx) => {
     return await ctx.db.insert("awsAccounts", {
       organizationId: options.organizationId,
       name,
@@ -375,7 +381,7 @@ export async function createMockAwsCredentials(
 ): Promise<MockAwsCredentials> {
   const now = Date.now();
 
-  const credentialsId = await t.run(async (ctx) => {
+  const credentialsId = await t.run(async (ctx: TestCtx) => {
     return await ctx.db.insert("awsCredentials", {
       awsAccountId: options.awsAccountId,
       encryptedAccessKeyId: options.encryptedAccessKeyId,
@@ -437,7 +443,7 @@ export async function createMockSandboxExecution(
   const exitCode = options.exitCode ?? 0;
   const executionTime = options.executionTime ?? 500;
 
-  const executionId = await t.run(async (ctx) => {
+  const executionId = await t.run(async (ctx: TestCtx) => {
     return await ctx.db.insert("sandboxExecutions", {
       awsAccountId: options.awsAccountId,
       command,
@@ -541,7 +547,7 @@ export async function createMockAnalysisRun(
   const status = options.status ?? "pending";
   const startedAt = options.startedAt ?? now;
 
-  const runId = await t.run(async (ctx) => {
+  const runId = await t.run(async (ctx: TestCtx) => {
     return await ctx.db.insert("analysisRuns", {
       organizationId: options.organizationId,
       type,
@@ -597,7 +603,7 @@ export async function createMockCostSnapshot(
   const date = options.date ?? new Date().toISOString().split("T")[0];
   const totalCost = options.totalCost ?? 0;
 
-  const snapshotId = await t.run(async (ctx) => {
+  const snapshotId = await t.run(async (ctx: TestCtx) => {
     return await ctx.db.insert("costSnapshots", {
       awsAccountId: options.awsAccountId,
       date,
@@ -655,7 +661,7 @@ export async function createMockResource(
 ): Promise<MockResource> {
   const now = Date.now();
 
-  const resourceDbId = await t.run(async (ctx) => {
+  const resourceDbId = await t.run(async (ctx: TestCtx) => {
     return await ctx.db.insert("resources", {
       awsAccountId: options.awsAccountId,
       resourceType: options.resourceType,
@@ -720,7 +726,7 @@ export async function createMockRecommendation(
   const estimatedSavings = options.estimatedSavings ?? 100;
   const status = options.status ?? "open";
 
-  const recommendationId = await t.run(async (ctx) => {
+  const recommendationId = await t.run(async (ctx: TestCtx) => {
     return await ctx.db.insert("recommendations", {
       awsAccountId: options.awsAccountId,
       type,
@@ -784,7 +790,7 @@ export async function createMockSubscription(
   const status = options.status ?? "active";
   const currentPeriodEnd = options.currentPeriodEnd ?? now + 30 * 24 * 60 * 60 * 1000;
 
-  const subscriptionId = await t.run(async (ctx) => {
+  const subscriptionId = await t.run(async (ctx: TestCtx) => {
     return await ctx.db.insert("subscriptions", {
       organizationId: options.organizationId,
       stripeCustomerId,
@@ -844,7 +850,7 @@ export async function createMockBudget(
   const period = options.period ?? "monthly";
   const alertThresholds = options.alertThresholds ?? [50, 80, 100];
 
-  const budgetId = await t.run(async (ctx) => {
+  const budgetId = await t.run(async (ctx: TestCtx) => {
     return await ctx.db.insert("budgets", {
       organizationId: options.organizationId,
       awsAccountId: options.awsAccountId,
@@ -909,7 +915,7 @@ export async function createMockAlert(
   const severity = options.severity ?? "warning";
   const triggeredAt = options.triggeredAt ?? now;
 
-  const alertId = await t.run(async (ctx) => {
+  const alertId = await t.run(async (ctx: TestCtx) => {
     return await ctx.db.insert("alerts", {
       organizationId: options.organizationId,
       type,
@@ -1002,7 +1008,7 @@ export async function createMockActivityLog(
   const entityType = options.entityType ?? "organization";
   const entityId = options.entityId ?? `entity-${now}`;
 
-  const logId = await t.run(async (ctx) => {
+  const logId = await t.run(async (ctx: TestCtx) => {
     return await ctx.db.insert("activityLogs", {
       organizationId: options.organizationId,
       userId: options.userId,
@@ -1039,7 +1045,7 @@ export async function createMockReport(
   const status = options.status ?? "pending";
   const generatedAt = options.generatedAt ?? (status === "completed" ? now : undefined);
 
-  const reportId = await t.run(async (ctx) => {
+  const reportId = await t.run(async (ctx: TestCtx) => {
     return await ctx.db.insert("reports", {
       organizationId: options.organizationId,
       type,

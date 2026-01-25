@@ -10,6 +10,7 @@ import {
   IconFileText,
   IconCloud,
   IconSettings,
+  IconActivity,
   IconCreditCard,
   IconUsers,
 } from "@tabler/icons-react";
@@ -32,6 +33,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Reports", path: "/reports", icon: <IconFileText size={20} /> },
   { label: "Accounts", path: "/accounts", icon: <IconCloud size={20} /> },
   { label: "Settings", path: "/settings", icon: <IconSettings size={20} /> },
+  { label: "Activity", path: "/settings/activity", icon: <IconActivity size={20} /> },
   { label: "Billing", path: "/billing", icon: <IconCreditCard size={20} /> },
   { label: "Team", path: "/team", icon: <IconUsers size={20} /> },
 ];

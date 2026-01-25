@@ -14,6 +14,7 @@ import {
   Button,
   Divider,
   Tooltip,
+  Center,
 } from "@mantine/core";
 import {
   IconSend,
@@ -25,22 +26,7 @@ import {
 } from "@tabler/icons-react";
 import { useQuery, useMutation } from "convex/react";
 import { showErrorToast } from "../lib/notifications";
-
-// API placeholder - in production, import from Convex generated API
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const api: any = {
-  ai: {
-    threads: {
-      list: "api.ai.threads.list",
-      create: "api.ai.threads.create",
-      remove: "api.ai.threads.remove",
-    },
-    chat: {
-      listThreadMessages: "api.ai.chat.listThreadMessages",
-      sendMessage: "api.ai.chat.sendMessage",
-    },
-  },
-};
+import { api } from "@aws-optimizer/convex/convex/_generated/api";
 import { useSession } from "../lib/auth-client";
 
 interface Message {
@@ -53,8 +39,10 @@ interface Message {
 interface Thread {
   id: string;
   title: string;
-  createdAt: number;
-  status: string;
+  createdAt?: number;
+  status?: string;
+  _id?: string;
+  _creationTime?: number;
 }
 
 function getMessageText(message: Message["message"]): string {
@@ -68,18 +56,25 @@ function getMessageText(message: Message["message"]): string {
 }
 
 export function ChatPage() {
-  const { data: session } = useSession();
+  const { data: session, isPending: isSessionPending } = useSession();
   const [inputValue, setInputValue] = useState("");
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
+  // Wait for authentication before executing queries
+  const isAuthenticated = !isSessionPending && session !== null;
 
-  // Convex queries and mutations
-  const threads = useQuery(api.ai.threads.list, { paginationOpts: { numItems: 50, cursor: null } });
+  // Convex queries and mutations - skip until authenticated
+  const threads = useQuery(
+    api.ai.threads.list,
+    isAuthenticated ? { paginationOpts: { numItems: 50, cursor: null } } : "skip"
+  );
   const messages = useQuery(
     api.ai.chat.listThreadMessages,
-    selectedThreadId ? { threadId: selectedThreadId, paginationOpts: { numItems: 100, cursor: null } } : "skip"
+    isAuthenticated && selectedThreadId
+      ? { threadId: selectedThreadId, paginationOpts: { numItems: 100, cursor: null } }
+      : "skip"
   );
   const sendMessage = useMutation(api.ai.chat.sendMessage);
   const createThread = useMutation(api.ai.threads.create);
@@ -145,8 +140,47 @@ export function ChatPage() {
     }
   };
 
-  const messageList = messages?.page || [];
-  const threadList: Thread[] = threads?.page || [];
+  // Cast messages to Message[] type - the agent library returns messages with role field
+  const messageList = (messages?.page || []) as Message[];
+  // Map threads to ensure consistent interface
+  const threadList: Thread[] = (threads?.page || []).map((t: { id?: string; _id?: string; title?: string; createdAt?: number; _creationTime?: number; status?: string }) => ({
+    id: t.id || t._id || "",
+    title: t.title || "Untitled",
+    createdAt: t.createdAt || t._creationTime,
+    status: t.status,
+  }));
+
+  // Show loading state while waiting for authentication
+  if (isSessionPending) {
+    return (
+      <Center h="calc(100vh - 120px)" data-testid="chat-page-loading">
+        <Stack align="center" gap="md">
+          <Loader size="lg" />
+          <Text c="dimmed">Loading...</Text>
+        </Stack>
+      </Center>
+    );
+  }
+
+  // Show message if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <Center h="calc(100vh - 120px)" data-testid="chat-page-unauthenticated">
+        <Paper p="xl" ta="center" withBorder>
+          <IconUser size={48} style={{ opacity: 0.5 }} />
+          <Text size="lg" mt="md">
+            Please sign in to continue
+          </Text>
+          <Text size="sm" c="dimmed" mt="xs">
+            You need to be signed in to use the AI chat assistant.
+          </Text>
+          <Button component="a" href="/login" mt="md">
+            Sign In
+          </Button>
+        </Paper>
+      </Center>
+    );
+  }
 
   return (
     <Box data-testid="chat-page" h="calc(100vh - 120px)" style={{ display: "flex" }}>
@@ -239,7 +273,7 @@ export function ChatPage() {
               </Paper>
             )}
 
-            {messageList.map((msg: Message) => (
+            {messageList.map((msg) => (
               <MessageBubble
                 key={msg._id}
                 role={msg.role}

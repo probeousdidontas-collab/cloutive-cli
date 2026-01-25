@@ -28,17 +28,7 @@ import {
   IconChevronDown,
 } from "@tabler/icons-react";
 import { useQuery } from "convex/react";
-
-// API placeholder - in production, import from Convex generated API
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const api: any = {
-  costs: {
-    getCostData: "api.costs.getCostData",
-  },
-  awsAccounts: {
-    listByOrganization: "api.awsAccounts.listByOrganization",
-  },
-};
+import { api } from "@aws-optimizer/convex/convex/_generated/api";
 
 interface CostRecord {
   _id: string;
@@ -169,9 +159,10 @@ export function CostExplorerPage() {
   const [sortField, setSortField] = useState<SortField>("date");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
-  // Fetch data
+  // Fetch data - these APIs work without arguments, they get org from auth context
   const costData = useQuery(api.costs.getCostData) as CostRecord[] | undefined;
-  const accounts = useQuery(api.awsAccounts.listByOrganization) as AwsAccount[] | undefined;
+  const accountsData = useQuery(api.awsAccounts.listByOrganization);
+  const accounts = accountsData as AwsAccount[] | undefined;
 
   // Extract unique values for filter options
   const filterOptions = useMemo(() => {

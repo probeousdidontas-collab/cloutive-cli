@@ -25,21 +25,9 @@ import {
   IconChevronDown,
   IconBulb,
 } from "@tabler/icons-react";
-import { useQuery } from "convex/react";
-
-// API placeholder - in production, import from Convex generated API
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const api: any = {
-  resources: {
-    list: "api.resources.list",
-  },
-  awsAccounts: {
-    listByOrganization: "api.awsAccounts.listByOrganization",
-  },
-  recommendations: {
-    list: "api.recommendations.list",
-  },
-};
+// Note: useQuery will be used when resources module is implemented
+// import { useQuery } from "convex/react";
+// import { api } from "@aws-optimizer/convex/convex/_generated/api";
 
 interface Resource {
   _id: string;
@@ -111,10 +99,14 @@ export function ResourcesPage() {
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
-  // Fetch data
-  const resources = useQuery(api.resources.list) as Resource[] | undefined;
-  const accounts = useQuery(api.awsAccounts.listByOrganization) as AwsAccount[] | undefined;
-  const recommendations = useQuery(api.recommendations.list) as Recommendation[] | undefined;
+  // Fetch data - using placeholder data until backend modules are implemented
+  // TODO: Replace with real Convex queries when resources module is available
+  // const resources = useQuery(api.resources.list) as Resource[] | undefined;
+  // const accounts = useQuery(api.awsAccounts.listByOrganization) as AwsAccount[] | undefined;
+  // const recommendations = useQuery(api.recommendations.list) as Recommendation[] | undefined;
+  const resources: Resource[] | undefined = [];
+  const accounts: AwsAccount[] | undefined = [];
+  const recommendations: Recommendation[] | undefined = [];
 
   // Extract unique values for filter options
   const filterOptions = useMemo(() => {

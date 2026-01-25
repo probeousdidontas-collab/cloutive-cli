@@ -7,17 +7,17 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { createTestConvex } from "../test.setup";
+import { createTestConvex, type TestCtx } from "../test.setup";
 import {
   createMockOrganization,
   createMockAwsAccount,
   createMockAwsCredentials,
   createMockSandboxExecution,
 } from "./test.helpers";
+import { api } from "./_generated/api";
 
 // Type assertion helper for convex-test
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnyCtx = any;
+type AnyCtx = TestCtx;
 
 describe("Sandbox Internal Functions", () => {
   describe("getAwsAccount query", () => {
@@ -32,7 +32,7 @@ describe("Sandbox Internal Functions", () => {
         status: "active",
       });
 
-      const result = await t.query("sandbox:getAwsAccount", {
+      const result = await t.query(api.sandbox.getAwsAccount, {
         awsAccountId: awsAccount._id,
       });
 
@@ -55,7 +55,7 @@ describe("Sandbox Internal Functions", () => {
         await ctx.db.delete(awsAccount._id);
       });
 
-      const result = await t.query("sandbox:getAwsAccount", {
+      const result = await t.query(api.sandbox.getAwsAccount, {
         awsAccountId: awsAccount._id,
       });
 
@@ -79,7 +79,7 @@ describe("Sandbox Internal Functions", () => {
         encryptedSecretAccessKey: "encrypted-wJalrXUtnFEMI/K7MDENG",
       });
 
-      const result = await t.query("sandbox:getAwsCredentials", {
+      const result = await t.query(api.sandbox.getAwsCredentials, {
         awsAccountId: awsAccount._id,
       });
 
@@ -99,7 +99,7 @@ describe("Sandbox Internal Functions", () => {
       });
       // No credentials created
 
-      const result = await t.query("sandbox:getAwsCredentials", {
+      const result = await t.query(api.sandbox.getAwsCredentials, {
         awsAccountId: awsAccount._id,
       });
 
@@ -118,7 +118,7 @@ describe("Sandbox Internal Functions", () => {
         status: "active",
       });
 
-      await t.mutation("sandbox:storeExecution", {
+      await t.mutation(api.sandbox.storeExecution, {
         awsAccountId: awsAccount._id,
         command: "aws sts get-caller-identity",
         stdout: '{"Account": "123456789012"}',
@@ -155,7 +155,7 @@ describe("Sandbox Internal Functions", () => {
         status: "active",
       });
 
-      await t.mutation("sandbox:storeExecution", {
+      await t.mutation(api.sandbox.storeExecution, {
         awsAccountId: awsAccount._id,
         command: "aws s3 ls s3://private-bucket",
         stdout: "",
@@ -186,7 +186,7 @@ describe("Sandbox Internal Functions", () => {
         organizationId: org._id,
       });
 
-      await t.mutation("sandbox:storeExecution", {
+      await t.mutation(api.sandbox.storeExecution, {
         awsAccountId: awsAccount._id,
         command: "aws sts get-caller-identity",
         stdout: "{}",
@@ -195,7 +195,7 @@ describe("Sandbox Internal Functions", () => {
         executionTime: 100,
       });
 
-      await t.mutation("sandbox:storeExecution", {
+      await t.mutation(api.sandbox.storeExecution, {
         awsAccountId: awsAccount._id,
         command: "aws s3 ls",
         stdout: "bucket1\nbucket2",
@@ -239,7 +239,7 @@ describe("Sandbox Internal Functions", () => {
       });
 
       // Retrieve and verify the encrypted values are stored
-      const credentials = await t.query("sandbox:getAwsCredentials", {
+      const credentials = await t.query(api.sandbox.getAwsCredentials, {
         awsAccountId: awsAccount._id,
       });
 
@@ -258,7 +258,7 @@ describe("Sandbox Internal Functions", () => {
         status: "active",
       });
 
-      const result = await t.query("sandbox:getAwsAccount", {
+      const result = await t.query(api.sandbox.getAwsAccount, {
         awsAccountId: awsAccount._id,
       });
 
@@ -274,7 +274,7 @@ describe("Sandbox Internal Functions", () => {
         status: "inactive",
       });
 
-      const result = await t.query("sandbox:getAwsAccount", {
+      const result = await t.query(api.sandbox.getAwsAccount, {
         awsAccountId: awsAccount._id,
       });
 
@@ -290,7 +290,7 @@ describe("Sandbox Internal Functions", () => {
         status: "error",
       });
 
-      const result = await t.query("sandbox:getAwsAccount", {
+      const result = await t.query(api.sandbox.getAwsAccount, {
         awsAccountId: awsAccount._id,
       });
 
@@ -313,7 +313,7 @@ describe("Sandbox Internal Functions", () => {
         await ctx.db.patch(awsAccount._id, { region: "eu-west-1" });
       });
 
-      const result = await t.query("sandbox:getAwsAccount", {
+      const result = await t.query(api.sandbox.getAwsAccount, {
         awsAccountId: awsAccount._id,
       });
 
@@ -329,7 +329,7 @@ describe("Sandbox Internal Functions", () => {
         status: "active",
       });
 
-      const result = await t.query("sandbox:getAwsAccount", {
+      const result = await t.query(api.sandbox.getAwsAccount, {
         awsAccountId: awsAccount._id,
       });
 

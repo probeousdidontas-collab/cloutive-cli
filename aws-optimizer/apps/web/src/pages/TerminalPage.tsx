@@ -31,17 +31,8 @@ import {
   IconShieldOff,
 } from "@tabler/icons-react";
 import { useQuery, useAction } from "convex/react";
-
-// API placeholder - in production, import from Convex generated API
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const api: any = {
-  awsAccounts: {
-    listByOrganization: "api.awsAccounts.listByOrganization",
-  },
-  sandbox: {
-    executeCommand: "api.sandbox.executeCommand",
-  },
-};
+import { api } from "@aws-optimizer/convex/convex/_generated/api";
+import type { Id } from "@aws-optimizer/convex/convex/_generated/dataModel";
 
 interface AwsAccount {
   _id: string;
@@ -135,7 +126,9 @@ export function TerminalPage() {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
 
   // Fetch accounts
-  const accounts = useQuery(api.awsAccounts.listByOrganization) as AwsAccount[] | undefined;
+  // Fetch data - these APIs work without arguments, they get org from auth context
+  const accountsData = useQuery(api.awsAccounts.listByOrganization);
+  const accounts = accountsData as AwsAccount[] | undefined;
   const executeCommand = useAction(api.sandbox.executeCommand);
 
   // Filter to only active accounts
@@ -195,7 +188,7 @@ export function TerminalPage() {
 
     try {
       const result = await executeCommand({
-        awsAccountId: selectedAccountId,
+        awsAccountId: selectedAccountId as Id<"awsAccounts">,
         command: trimmedCommand,
       });
 

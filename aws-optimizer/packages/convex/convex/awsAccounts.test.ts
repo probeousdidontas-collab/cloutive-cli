@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { createTestConvex } from "../test.setup";
+import { createTestConvex, type TestCtx } from "../test.setup";
 import {
   createMockOrganization,
   createMockUser,
@@ -20,10 +20,57 @@ import {
   createMockAwsAccount,
   createMockAwsCredentials,
 } from "./test.helpers";
+import type { Id } from "./_generated/dataModel";
+import { api } from "./_generated/api";
+
+/**
+ * Helper to create an authenticated user with organization membership.
+ * Used for testing mutations that require auth context.
+ */
+async function createAuthenticatedUser(t: ReturnType<typeof createTestConvex>): Promise<{
+  organizationId: Id<"organizations">;
+  userId: Id<"users">;
+}> {
+  const now = Date.now();
+  
+  const organizationId = await t.run(async (ctx: AnyCtx) => {
+    return await ctx.db.insert("organizations", {
+      name: "Test Org",
+      slug: `test-org-${now}`,
+      plan: "free",
+      settings: {},
+      createdAt: now,
+      updatedAt: now,
+    });
+  });
+
+  const userId = await t.run(async (ctx: AnyCtx) => {
+    return await ctx.db.insert("users", {
+      email: `user-${now}@example.com`,
+      name: "Test User",
+      role: "user",
+      status: "active",
+      emailVerified: true,
+      createdAt: now,
+      updatedAt: now,
+    });
+  });
+
+  await t.run(async (ctx: AnyCtx) => {
+    return await ctx.db.insert("orgMembers", {
+      organizationId,
+      userId,
+      role: "owner",
+      createdAt: now,
+      updatedAt: now,
+    });
+  });
+
+  return { organizationId, userId };
+}
 
 // Type assertion helper for convex-test
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnyCtx = any;
+type AnyCtx = TestCtx;
 
 describe("AWS Accounts - Access Key Connection (US-013)", () => {
   describe("connectWithKeys mutation", () => {
@@ -38,7 +85,7 @@ describe("AWS Accounts - Access Key Connection (US-013)", () => {
         role: "owner",
       });
 
-      const result = await t.mutation("awsAccounts:connectWithKeys", {
+      const result = await t.mutation(api.awsAccounts.connectWithKeys, {
         organizationId: org._id,
         userId: user._id,
         name: "Production Account",
@@ -76,7 +123,7 @@ describe("AWS Accounts - Access Key Connection (US-013)", () => {
         role: "admin",
       });
 
-      const result = await t.mutation("awsAccounts:connectWithKeys", {
+      const result = await t.mutation(api.awsAccounts.connectWithKeys, {
         organizationId: org._id,
         userId: user._id,
         name: "Dev Account",
@@ -89,9 +136,7 @@ describe("AWS Accounts - Access Key Connection (US-013)", () => {
       const credentials = await t.run(async (ctx: AnyCtx) => {
         return await ctx.db
           .query("awsCredentials")
-          .withIndex("by_awsAccount", (q: { eq: (field: string, value: unknown) => unknown }) =>
-            q.eq("awsAccountId", result.awsAccountId)
-          )
+          .withIndex("by_awsAccount", (q: AnyCtx) => q.eq("awsAccountId", result.awsAccountId))
           .first();
       });
 
@@ -118,7 +163,7 @@ describe("AWS Accounts - Access Key Connection (US-013)", () => {
       });
 
       await expect(
-        t.mutation("awsAccounts:connectWithKeys", {
+        t.mutation(api.awsAccounts.connectWithKeys, {
           organizationId: org._id,
           userId: user._id,
           name: "Bad Account",
@@ -141,7 +186,7 @@ describe("AWS Accounts - Access Key Connection (US-013)", () => {
       });
 
       await expect(
-        t.mutation("awsAccounts:connectWithKeys", {
+        t.mutation(api.awsAccounts.connectWithKeys, {
           organizationId: org._id,
           userId: user._id,
           name: "Bad Account",
@@ -160,7 +205,7 @@ describe("AWS Accounts - Access Key Connection (US-013)", () => {
       // Note: user is NOT added as a member
 
       await expect(
-        t.mutation("awsAccounts:connectWithKeys", {
+        t.mutation(api.awsAccounts.connectWithKeys, {
           organizationId: org._id,
           userId: user._id,
           name: "Account",
@@ -182,7 +227,7 @@ describe("AWS Accounts - Access Key Connection (US-013)", () => {
         role: "member",
       });
 
-      const result = await t.mutation("awsAccounts:connectWithKeys", {
+      const result = await t.mutation(api.awsAccounts.connectWithKeys, {
         organizationId: org._id,
         userId: user._id,
         name: "Member Account",
@@ -206,7 +251,7 @@ describe("AWS Accounts - Access Key Connection (US-013)", () => {
       });
 
       await expect(
-        t.mutation("awsAccounts:connectWithKeys", {
+        t.mutation(api.awsAccounts.connectWithKeys, {
           organizationId: org._id,
           userId: user._id,
           name: "Viewer Account",
@@ -228,7 +273,7 @@ describe("AWS Accounts - Access Key Connection (US-013)", () => {
         role: "owner",
       });
 
-      const result = await t.mutation("awsAccounts:connectWithKeys", {
+      const result = await t.mutation(api.awsAccounts.connectWithKeys, {
         organizationId: org._id,
         userId: user._id,
         name: "EU Account",
@@ -258,7 +303,7 @@ describe("AWS Accounts - Access Key Connection (US-013)", () => {
         role: "owner",
       });
 
-      const result = await t.mutation("awsAccounts:connectWithKeys", {
+      const result = await t.mutation(api.awsAccounts.connectWithKeys, {
         organizationId: org._id,
         userId: user._id,
         name: "Test Account",
@@ -300,7 +345,7 @@ describe("AWS Accounts - Access Key Connection (US-013)", () => {
       });
 
       // Mock verification - in real implementation this would call sandbox
-      const result = await t.mutation("awsAccounts:verifyKeyConnection", {
+      const result = await t.mutation(api.awsAccounts.verifyKeyConnection, {
         awsAccountId: awsAccount._id,
         userId: user._id,
         mockSuccess: true, // Test helper flag
@@ -341,7 +386,7 @@ describe("AWS Accounts - Access Key Connection (US-013)", () => {
         encryptedSecretAccessKey: "encrypted-invalidSecret",
       });
 
-      const result = await t.mutation("awsAccounts:verifyKeyConnection", {
+      const result = await t.mutation(api.awsAccounts.verifyKeyConnection, {
         awsAccountId: awsAccount._id,
         userId: user._id,
         mockSuccess: false,
@@ -376,7 +421,7 @@ describe("AWS Accounts - Access Key Connection (US-013)", () => {
       // Note: No credentials created
 
       await expect(
-        t.mutation("awsAccounts:verifyKeyConnection", {
+        t.mutation(api.awsAccounts.verifyKeyConnection, {
           awsAccountId: awsAccount._id,
           userId: user._id,
         })
@@ -408,12 +453,118 @@ describe("AWS Accounts - Access Key Connection (US-013)", () => {
       });
 
       await expect(
-        t.mutation("awsAccounts:verifyKeyConnection", {
+        t.mutation(api.awsAccounts.verifyKeyConnection, {
           awsAccountId: awsAccount._id,
           userId: user._id,
         })
       ).rejects.toThrow("Access key credentials are required");
     });
+  });
+});
+
+describe("connectWithCredentialsFile mutation", () => {
+  it("should connect account with parsed credentials file", async () => {
+    const t = createTestConvex();
+    const { organizationId, userId } = await createAuthenticatedUser(t);
+
+    const result = await t.mutation(api.awsAccounts.connectWithCredentialsFile, {
+      organizationId,
+      userId,
+      name: "Dev Account",
+      accountNumber: "123456789012",
+      accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+      secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+      sourceProfile: "default",
+      sourceFormat: "ini",
+      region: "us-east-1",
+    });
+
+    expect(result.awsAccountId).toBeDefined();
+    expect(result.credentialsId).toBeDefined();
+    expect(result.isTemporary).toBe(false);
+
+    // Verify account was created
+    const account = await t.run(async (ctx: AnyCtx) => {
+      return await ctx.db.get(result.awsAccountId);
+    });
+
+    expect(account?.connectionType).toBe("credentials_file");
+    expect(account?.status).toBe("pending");
+  });
+
+  it("should detect temporary credentials with session token", async () => {
+    const t = createTestConvex();
+    const { organizationId, userId } = await createAuthenticatedUser(t);
+
+    const result = await t.mutation(api.awsAccounts.connectWithCredentialsFile, {
+      organizationId,
+      userId,
+      name: "Temp Account",
+      accountNumber: "123456789012",
+      accessKeyId: "ASIAZXCVBNM1234TEMP",
+      secretAccessKey: "secret",
+      sessionToken: "session-token-123",
+      sourceProfile: "temp",
+      sourceFormat: "json",
+    });
+
+    expect(result.isTemporary).toBe(true);
+    expect(result.warning).toContain("temporary credentials");
+  });
+
+  it("should store source profile and format", async () => {
+    const t = createTestConvex();
+    const { organizationId, userId } = await createAuthenticatedUser(t);
+
+    const result = await t.mutation(api.awsAccounts.connectWithCredentialsFile, {
+      organizationId,
+      userId,
+      name: "Test Account",
+      accountNumber: "123456789012",
+      accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+      secretAccessKey: "secret",
+      sourceProfile: "production",
+      sourceFormat: "env",
+    });
+
+    // Verify credentials have source info
+    const credentials = await t.run(async (ctx: AnyCtx) => {
+      return await ctx.db
+        .query("awsCredentials")
+        .withIndex("by_awsAccount", (q: AnyCtx) => q.eq("awsAccountId", result.awsAccountId))
+        .first();
+    });
+
+    expect(credentials?.sourceProfile).toBe("production");
+    expect(credentials?.sourceFormat).toBe("env");
+  });
+
+  it("should track credential expiry", async () => {
+    const t = createTestConvex();
+    const { organizationId, userId } = await createAuthenticatedUser(t);
+    const expiresAt = Date.now() + 3 * 24 * 60 * 60 * 1000; // 3 days from now
+
+    const result = await t.mutation(api.awsAccounts.connectWithCredentialsFile, {
+      organizationId,
+      userId,
+      name: "Expiring Account",
+      accountNumber: "123456789012",
+      accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+      secretAccessKey: "secret",
+      sourceProfile: "default",
+      sourceFormat: "json",
+      expiresAt,
+    });
+
+    const credentials = await t.run(async (ctx: AnyCtx) => {
+      return await ctx.db
+        .query("awsCredentials")
+        .withIndex("by_awsAccount", (q: AnyCtx) => q.eq("awsAccountId", result.awsAccountId))
+        .first();
+    });
+
+    expect(credentials?.expiresAt).toBe(expiresAt);
+    expect(credentials?.validationStatus).toBe("expiring");
   });
 });
 
@@ -430,7 +581,7 @@ describe("AWS Accounts - IAM Role Connection", () => {
         role: "owner",
       });
 
-      const result = await t.mutation("awsAccounts:connectWithRole", {
+      const result = await t.mutation(api.awsAccounts.connectWithRole, {
         organizationId: org._id,
         userId: user._id,
         name: "Production Account",
@@ -466,7 +617,7 @@ describe("AWS Accounts - IAM Role Connection", () => {
         role: "admin",
       });
 
-      const result = await t.mutation("awsAccounts:connectWithRole", {
+      const result = await t.mutation(api.awsAccounts.connectWithRole, {
         organizationId: org._id,
         userId: user._id,
         name: "Dev Account",
@@ -480,9 +631,7 @@ describe("AWS Accounts - IAM Role Connection", () => {
       const credentials = await t.run(async (ctx: AnyCtx) => {
         return await ctx.db
           .query("awsCredentials")
-          .withIndex("by_awsAccount", (q: { eq: (field: string, value: unknown) => unknown }) =>
-            q.eq("awsAccountId", result.awsAccountId)
-          )
+          .withIndex("by_awsAccount", (q: AnyCtx) => q.eq("awsAccountId", result.awsAccountId))
           .first();
       });
 
@@ -504,7 +653,7 @@ describe("AWS Accounts - IAM Role Connection", () => {
       });
 
       await expect(
-        t.mutation("awsAccounts:connectWithRole", {
+        t.mutation(api.awsAccounts.connectWithRole, {
           organizationId: org._id,
           userId: user._id,
           name: "Bad Account",
@@ -527,7 +676,7 @@ describe("AWS Accounts - IAM Role Connection", () => {
       });
 
       await expect(
-        t.mutation("awsAccounts:connectWithRole", {
+        t.mutation(api.awsAccounts.connectWithRole, {
           organizationId: org._id,
           userId: user._id,
           name: "Bad Account",
@@ -546,7 +695,7 @@ describe("AWS Accounts - IAM Role Connection", () => {
       // Note: user is NOT added as a member
 
       await expect(
-        t.mutation("awsAccounts:connectWithRole", {
+        t.mutation(api.awsAccounts.connectWithRole, {
           organizationId: org._id,
           userId: user._id,
           name: "Account",
@@ -568,7 +717,7 @@ describe("AWS Accounts - IAM Role Connection", () => {
         role: "member", // members have write permissions
       });
 
-      const result = await t.mutation("awsAccounts:connectWithRole", {
+      const result = await t.mutation(api.awsAccounts.connectWithRole, {
         organizationId: org._id,
         userId: user._id,
         name: "Member Account",
@@ -592,7 +741,7 @@ describe("AWS Accounts - IAM Role Connection", () => {
       });
 
       await expect(
-        t.mutation("awsAccounts:connectWithRole", {
+        t.mutation(api.awsAccounts.connectWithRole, {
           organizationId: org._id,
           userId: user._id,
           name: "Viewer Account",
@@ -614,7 +763,7 @@ describe("AWS Accounts - IAM Role Connection", () => {
         role: "owner",
       });
 
-      const result = await t.mutation("awsAccounts:connectWithRole", {
+      const result = await t.mutation(api.awsAccounts.connectWithRole, {
         organizationId: org._id,
         userId: user._id,
         name: "EU Account",
@@ -638,7 +787,7 @@ describe("AWS Accounts - IAM Role Connection", () => {
     it("should generate CloudFormation template with correct parameters", async () => {
       const t = createTestConvex();
 
-      const result = await t.query("awsAccounts:generateCloudFormationTemplate", {
+      const result = await t.query(api.awsAccounts.generateCloudFormationTemplate, {
         externalId: "unique-external-id-456",
         roleName: "CostOptimizerRole",
       });
@@ -653,7 +802,7 @@ describe("AWS Accounts - IAM Role Connection", () => {
     it("should use default role name if not provided", async () => {
       const t = createTestConvex();
 
-      const result = await t.query("awsAccounts:generateCloudFormationTemplate", {
+      const result = await t.query(api.awsAccounts.generateCloudFormationTemplate, {
         externalId: "test-external-id",
       });
 
@@ -663,7 +812,7 @@ describe("AWS Accounts - IAM Role Connection", () => {
     it("should include ReadOnlyAccess policy in template", async () => {
       const t = createTestConvex();
 
-      const result = await t.query("awsAccounts:generateCloudFormationTemplate", {
+      const result = await t.query(api.awsAccounts.generateCloudFormationTemplate, {
         externalId: "test-external-id",
       });
 
@@ -700,7 +849,7 @@ describe("AWS Accounts - IAM Role Connection", () => {
 
       // Mock verification - in real implementation this would call sandbox
       // For now we test the mutation interface
-      const result = await t.mutation("awsAccounts:verifyRoleConnection", {
+      const result = await t.mutation(api.awsAccounts.verifyRoleConnection, {
         awsAccountId: awsAccount._id,
         userId: user._id,
         mockSuccess: true, // Test helper flag
@@ -741,7 +890,7 @@ describe("AWS Accounts - IAM Role Connection", () => {
         externalId: "invalid-external-id",
       });
 
-      const result = await t.mutation("awsAccounts:verifyRoleConnection", {
+      const result = await t.mutation(api.awsAccounts.verifyRoleConnection, {
         awsAccountId: awsAccount._id,
         userId: user._id,
         mockSuccess: false,
@@ -776,7 +925,7 @@ describe("AWS Accounts - IAM Role Connection", () => {
       // Note: No credentials created
 
       await expect(
-        t.mutation("awsAccounts:verifyRoleConnection", {
+        t.mutation(api.awsAccounts.verifyRoleConnection, {
           awsAccountId: awsAccount._id,
           userId: user._id,
         })
@@ -802,7 +951,7 @@ describe("AWS Accounts - IAM Role Connection", () => {
         connectionType: "iam_role",
       });
 
-      const result = await t.query("awsAccounts:getById", {
+      const result = await t.query(api.awsAccounts.getById, {
         awsAccountId: awsAccount._id,
         userId: user._id,
       });
@@ -832,7 +981,7 @@ describe("AWS Accounts - IAM Role Connection", () => {
         await ctx.db.delete(awsAccount._id);
       });
 
-      const result = await t.query("awsAccounts:getById", {
+      const result = await t.query(api.awsAccounts.getById, {
         awsAccountId: awsAccount._id,
         userId: user._id,
       });
@@ -864,7 +1013,7 @@ describe("AWS Accounts - IAM Role Connection", () => {
         connectionType: "access_key",
       });
 
-      const result = await t.query("awsAccounts:listByOrganization", {
+      const result = await t.query(api.awsAccounts.listByOrganization, {
         organizationId: org._id,
         userId: user._id,
       });
@@ -895,7 +1044,7 @@ describe("AWS Accounts - IAM Role Connection", () => {
         name: "Org2 Account",
       });
 
-      const result = await t.query("awsAccounts:listByOrganization", {
+      const result = await t.query(api.awsAccounts.listByOrganization, {
         organizationId: org1._id,
         userId: user._id,
       });

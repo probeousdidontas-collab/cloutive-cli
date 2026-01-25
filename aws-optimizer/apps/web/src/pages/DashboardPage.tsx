@@ -12,6 +12,9 @@ import {
   SimpleGrid,
   List,
   Skeleton,
+  Center,
+  Loader,
+  Button,
 } from "@mantine/core";
 import { DonutChart, AreaChart } from "@mantine/charts";
 import {
@@ -25,16 +28,10 @@ import {
   IconChartLine,
 } from "@tabler/icons-react";
 import { useQuery } from "convex/react";
-
-// API placeholder - in production, import from Convex generated API
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const api: any = {
-  dashboard: {
-    getCostSnapshots: "api.dashboard.getCostSnapshots",
-    getTopRecommendations: "api.dashboard.getTopRecommendations",
-    getDashboardSummary: "api.dashboard.getDashboardSummary",
-  },
-};
+import { api } from "@aws-optimizer/convex/convex/_generated/api";
+import { useSession, IS_TEST_MODE } from "../lib/auth-client";
+import { useActiveOrganization } from "../hooks";
+import { IconUser } from "@tabler/icons-react";
 
 interface CostSnapshot {
   _id: string;
@@ -122,10 +119,64 @@ function getRecommendationTypeLabel(type: string): string {
 }
 
 export function DashboardPage() {
-  // Fetch dashboard data
-  const costSnapshots = useQuery(api.dashboard.getCostSnapshots) as CostSnapshot[] | undefined;
-  const recommendations = useQuery(api.dashboard.getTopRecommendations) as Recommendation[] | undefined;
-  const summary = useQuery(api.dashboard.getDashboardSummary) as DashboardSummary | undefined;
+  const { data: session, isPending: isSessionPending } = useSession();
+
+  // Wait for authentication before executing queries
+  const isAuthenticated = !isSessionPending && session !== null;
+  
+  // Get user ID from Better Auth session
+  const userId = session?.user?.id;
+
+  // Fetch active organization using custom hook
+  const { organization: activeOrganization, isLoading: isLoadingOrg } = useActiveOrganization(isAuthenticated);
+
+  // Get organization ID from Better Auth active organization
+  const organizationId = activeOrganization?.id;
+
+  // Determine if we have all required IDs for dashboard queries
+  // In test mode, the IDs are strings like "test-org-id" and "test-user-id"
+  const hasRequiredIds = isAuthenticated && userId && organizationId;
+
+  // In test mode, use empty args (backend handles test mode)
+  // Otherwise, pass the real IDs
+  const shouldQueryDashboard = isAuthenticated && !isLoadingOrg && (IS_TEST_MODE || hasRequiredIds);
+
+  // Fetch dashboard data - skip until we have the required IDs (or in test mode)
+  const costSnapshots = useQuery(
+    api.dashboard.getCostSnapshots,
+    shouldQueryDashboard
+      ? IS_TEST_MODE
+        ? {} // Empty args for test mode - backend returns mock data
+        : {
+            organizationId: organizationId as never,
+            userId: userId as never,
+          }
+      : "skip"
+  ) as CostSnapshot[] | undefined;
+  
+  const recommendations = useQuery(
+    api.dashboard.getTopRecommendations,
+    shouldQueryDashboard
+      ? IS_TEST_MODE
+        ? {} // Empty args for test mode - backend returns mock data
+        : {
+            organizationId: organizationId as never,
+            userId: userId as never,
+          }
+      : "skip"
+  ) as Recommendation[] | undefined;
+  
+  const summary = useQuery(
+    api.dashboard.getDashboardSummary,
+    shouldQueryDashboard
+      ? IS_TEST_MODE
+        ? {} // Empty args for test mode - backend returns mock data
+        : {
+            organizationId: organizationId as never,
+            userId: userId as never,
+          }
+      : "skip"
+  ) as DashboardSummary | undefined;
 
   // Process cost snapshots for charts
   const { serviceChartData, trendChartData, currentMonthTotal, previousMonthTotal } = useMemo(() => {
@@ -222,7 +273,56 @@ export function DashboardPage() {
       .reduce((sum, r) => sum + r.estimatedSavings, 0);
   }, [recommendations]);
 
-  const isLoading = costSnapshots === undefined || recommendations === undefined;
+  const isLoading = costSnapshots === undefined || recommendations === undefined || isLoadingOrg;
+
+  // Show loading state while waiting for authentication or organization
+  if (isSessionPending || (isAuthenticated && isLoadingOrg)) {
+    return (
+      <Center h="calc(100vh - 120px)" data-testid="dashboard-page-loading">
+        <Stack align="center" gap="md">
+          <Loader size="lg" />
+          <Text c="dimmed">Loading...</Text>
+        </Stack>
+      </Center>
+    );
+  }
+
+  // Show message if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <Center h="calc(100vh - 120px)" data-testid="dashboard-page-unauthenticated">
+        <Paper p="xl" ta="center" withBorder>
+          <IconUser size={48} style={{ opacity: 0.5 }} />
+          <Text size="lg" mt="md">
+            Please sign in to continue
+          </Text>
+          <Text size="sm" c="dimmed" mt="xs">
+            You need to be signed in to view the dashboard.
+          </Text>
+          <Button component="a" href="/login" mt="md">
+            Sign In
+          </Button>
+        </Paper>
+      </Center>
+    );
+  }
+
+  // Show message if user has no organization (skip in test mode - test mode always has an organization)
+  if (!IS_TEST_MODE && !isLoadingOrg && !activeOrganization) {
+    return (
+      <Center h="calc(100vh - 120px)" data-testid="dashboard-page-no-org">
+        <Paper p="xl" ta="center" withBorder>
+          <IconCloud size={48} style={{ opacity: 0.5 }} />
+          <Text size="lg" mt="md">
+            No Organization Found
+          </Text>
+          <Text size="sm" c="dimmed" mt="xs">
+            You need to be a member of an organization to view the dashboard.
+          </Text>
+        </Paper>
+      </Center>
+    );
+  }
 
   return (
     <Container data-testid="dashboard-page" size="xl" py="xl">

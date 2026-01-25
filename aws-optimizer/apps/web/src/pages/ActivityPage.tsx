@@ -31,15 +31,11 @@ import {
   IconMail,
 } from "@tabler/icons-react";
 import { useQuery } from "convex/react";
+import { api } from "@aws-optimizer/convex/convex/_generated/api";
+import type { Id } from "@aws-optimizer/convex/convex/_generated/dataModel";
 
-// API placeholder - in production, import from Convex generated API
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const api: any = {
-  activityLogs: {
-    list: "api.activityLogs.list",
-    getUsers: "api.activityLogs.getUsers",
-  },
-};
+type ActivityAction = "create" | "update" | "delete";
+type ActivityEntityType = "organization" | "aws_account" | "budget" | "report" | "invitation";
 
 // TODO: In production, get these from auth context
 // For now, these will be passed as props or from a context
@@ -176,11 +172,11 @@ export function ActivityPage() {
     api.activityLogs.list,
     PLACEHOLDER_ORG_ID && PLACEHOLDER_USER_ID
       ? {
-          organizationId: PLACEHOLDER_ORG_ID,
-          userId: PLACEHOLDER_USER_ID,
-          filterUserId: filterUserId || undefined,
-          action: filterAction || undefined,
-          entityType: filterEntityType || undefined,
+          organizationId: PLACEHOLDER_ORG_ID as Id<"organizations">,
+          userId: PLACEHOLDER_USER_ID as Id<"users">,
+          filterUserId: (filterUserId || undefined) as Id<"users"> | undefined,
+          action: (filterAction || undefined) as ActivityAction | undefined,
+          entityType: (filterEntityType || undefined) as ActivityEntityType | undefined,
           startDate,
           endDate,
           limit: ITEMS_PER_PAGE * page,
@@ -193,8 +189,8 @@ export function ActivityPage() {
     api.activityLogs.getUsers,
     PLACEHOLDER_ORG_ID && PLACEHOLDER_USER_ID
       ? {
-          organizationId: PLACEHOLDER_ORG_ID,
-          userId: PLACEHOLDER_USER_ID,
+          organizationId: PLACEHOLDER_ORG_ID as Id<"organizations">,
+          userId: PLACEHOLDER_USER_ID as Id<"users">,
         }
       : "skip"
   ) as ActivityUser[] | undefined;

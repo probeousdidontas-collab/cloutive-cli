@@ -11,8 +11,29 @@ export { expect, test, describe, beforeEach, afterEach, vi };
 const modules = (import.meta as any).glob("./convex/**/*.ts");
 
 /**
+ * Test context type for convex-test callbacks.
+ * Used in t.run() callbacks for proper typing.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type TestCtx = any;
+
+/**
  * Create a test Convex instance.
  * Uses the main schema for testing.
+ * 
+ * Usage:
+ * ```ts
+ * const t = createTestConvex();
+ * 
+ * // For mutations/queries using string-based references:
+ * await t.mutation("moduleName:functionName", { arg: value });
+ * await t.query("moduleName:functionName", { arg: value });
+ * 
+ * // For direct database access in t.run():
+ * await t.run(async (ctx: TestCtx) => {
+ *   return await ctx.db.get(id);
+ * });
+ * ```
  */
 export function createTestConvex() {
   return convexTest(schema, modules);

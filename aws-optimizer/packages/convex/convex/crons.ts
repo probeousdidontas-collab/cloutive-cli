@@ -332,6 +332,226 @@ export const triggerDailyCostCollection = internalAction({
 });
 
 // ============================================================================
+// Credential Expiry Monitoring (Phase 1)
+// ============================================================================
+
+/**
+ * Get all credentials that are expiring soon or have expired.
+ * Returns credentials with their associated AWS account and organization info.
+ */
+export const getExpiringCredentials = internalQuery({
+  args: {},
+  returns: v.array(
+    v.object({
+      credentialId: v.id("awsCredentials"),
+      awsAccountId: v.id("awsAccounts"),
+      organizationId: v.id("organizations"),
+      accountName: v.string(),
+      expiresAt: v.number(),
+      daysUntilExpiry: v.number(),
+      validationStatus: v.string(),
+    })
+  ),
+  handler: async (ctx) => {
+    const now = Date.now();
+    const sevenDaysFromNow = now + 7 * 24 * 60 * 60 * 1000;
+
+    // Get all credentials with expiry dates
+    const allCredentials = await ctx.db.query("awsCredentials").collect();
+
+    const expiringCredentials: Array<{
+      credentialId: Id<"awsCredentials">;
+      awsAccountId: Id<"awsAccounts">;
+      organizationId: Id<"organizations">;
+      accountName: string;
+      expiresAt: number;
+      daysUntilExpiry: number;
+      validationStatus: string;
+    }> = [];
+
+    for (const cred of allCredentials) {
+      // Skip credentials without expiry dates or already validated as healthy
+      if (!cred.expiresAt) continue;
+
+      // Check if expiring within 7 days or already expired
+      if (cred.expiresAt > sevenDaysFromNow) continue;
+
+      // Get the AWS account
+      const awsAccount = await ctx.db.get(cred.awsAccountId);
+      if (!awsAccount || awsAccount.status === "inactive") continue;
+
+      const daysUntilExpiry = Math.floor((cred.expiresAt - now) / (24 * 60 * 60 * 1000));
+
+      expiringCredentials.push({
+        credentialId: cred._id,
+        awsAccountId: cred.awsAccountId,
+        organizationId: awsAccount.organizationId,
+        accountName: awsAccount.name,
+        expiresAt: cred.expiresAt,
+        daysUntilExpiry,
+        validationStatus: cred.validationStatus || "unknown",
+      });
+    }
+
+    // Sort by days until expiry (most urgent first)
+    expiringCredentials.sort((a, b) => a.daysUntilExpiry - b.daysUntilExpiry);
+
+    return expiringCredentials;
+  },
+});
+
+/**
+ * Create an alert for expiring credentials.
+ */
+export const createCredentialExpiryAlert = internalMutation({
+  args: {
+    organizationId: v.id("organizations"),
+    awsAccountId: v.id("awsAccounts"),
+    accountName: v.string(),
+    daysUntilExpiry: v.number(),
+    isExpired: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+
+    // Check if we already have an unacknowledged alert for this account
+    const existingAlert = await ctx.db
+      .query("alerts")
+      .withIndex("by_organization", (q) => q.eq("organizationId", args.organizationId))
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("type"), "anomaly_detected"),
+          q.eq(q.field("acknowledgedAt"), undefined)
+        )
+      )
+      .collect();
+
+    // Check if any existing alert is for this AWS account (check message content)
+    const hasExistingAlert = existingAlert.some((alert) =>
+      alert.message.includes(args.accountName) && alert.title.includes("Credential")
+    );
+
+    if (hasExistingAlert) {
+      return { created: false, reason: "Alert already exists" };
+    }
+
+    const severity = args.isExpired ? "critical" : args.daysUntilExpiry <= 3 ? "warning" : "info";
+    const title = args.isExpired
+      ? `Credentials Expired: ${args.accountName}`
+      : `Credentials Expiring Soon: ${args.accountName}`;
+    const message = args.isExpired
+      ? `The AWS credentials for account "${args.accountName}" have expired. Please update the credentials to continue cost analysis.`
+      : `The AWS credentials for account "${args.accountName}" will expire in ${args.daysUntilExpiry} day${args.daysUntilExpiry === 1 ? "" : "s"}. Please refresh or update the credentials.`;
+
+    await ctx.db.insert("alerts", {
+      organizationId: args.organizationId,
+      type: "anomaly_detected", // Using existing alert type for credential issues
+      title,
+      message,
+      severity,
+      triggeredAt: now,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    return { created: true };
+  },
+});
+
+/**
+ * Update credential validation status based on expiry.
+ */
+export const updateCredentialExpiryStatus = internalMutation({
+  args: {
+    credentialId: v.id("awsCredentials"),
+    validationStatus: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+
+    await ctx.db.patch(args.credentialId, {
+      validationStatus: args.validationStatus as "healthy" | "expiring" | "expired" | "invalid" | "unknown",
+      updatedAt: now,
+    });
+  },
+});
+
+// Types for credential expiry check
+interface ExpiringCredential {
+  credentialId: Id<"awsCredentials">;
+  awsAccountId: Id<"awsAccounts">;
+  organizationId: Id<"organizations">;
+  accountName: string;
+  expiresAt: number;
+  daysUntilExpiry: number;
+  validationStatus: string;
+}
+
+interface CredentialExpiryCheckResult {
+  credentialsChecked: number;
+  results: Array<{
+    accountName: string;
+    status: string;
+    alertCreated: boolean;
+  }>;
+}
+
+/**
+ * Main cron job handler that checks for expiring credentials.
+ * Runs daily to:
+ * 1. Find credentials expiring within 7 days or already expired
+ * 2. Update their validation status
+ * 3. Create alerts for the organization
+ */
+export const triggerCredentialExpiryCheck = internalAction({
+  args: {},
+  handler: async (ctx): Promise<CredentialExpiryCheckResult> => {
+    // Get all expiring credentials
+    const expiringCredentials = await ctx.runQuery(
+      internal.crons.getExpiringCredentials,
+      {}
+    ) as ExpiringCredential[];
+
+    const results: Array<{
+      accountName: string;
+      status: string;
+      alertCreated: boolean;
+    }> = [];
+
+    for (const cred of expiringCredentials) {
+      const isExpired = cred.daysUntilExpiry < 0;
+      const newStatus = isExpired ? "expired" : "expiring";
+
+      // Update credential status
+      await ctx.runMutation(internal.crons.updateCredentialExpiryStatus, {
+        credentialId: cred.credentialId,
+        validationStatus: newStatus,
+      });
+
+      // Create alert
+      const alertResult = await ctx.runMutation(internal.crons.createCredentialExpiryAlert, {
+        organizationId: cred.organizationId,
+        awsAccountId: cred.awsAccountId,
+        accountName: cred.accountName,
+        daysUntilExpiry: cred.daysUntilExpiry,
+        isExpired,
+      }) as { created: boolean; reason?: string };
+
+      results.push({
+        accountName: cred.accountName,
+        status: newStatus,
+        alertCreated: alertResult.created,
+      });
+    }
+
+    return {
+      credentialsChecked: expiringCredentials.length,
+      results,
+    };
+  },
+});
+
+// ============================================================================
 // Weekly Summary Email Functions (US-037)
 // ============================================================================
 
@@ -819,6 +1039,15 @@ crons.cron(
   "daily cost collection",
   "0 2 * * *", // 2:00 AM UTC daily
   internal.crons.triggerDailyCostCollection,
+  {}
+);
+
+// Daily credential expiry check at 6:00 AM UTC
+// Checks for credentials expiring within 7 days and creates alerts
+crons.cron(
+  "daily credential expiry check",
+  "0 6 * * *", // 6:00 AM UTC daily
+  internal.crons.triggerCredentialExpiryCheck,
   {}
 );
 

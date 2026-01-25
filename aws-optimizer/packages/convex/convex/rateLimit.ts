@@ -40,6 +40,18 @@ export const RATE_LIMIT_CONFIGS = {
     rate: 20,
     period: 60 * 1000, // 1 minute in ms
   },
+  // Credential validation: 5 validations per minute per account
+  credentialValidation: {
+    kind: "fixed window" as const,
+    rate: 5,
+    period: 60 * 1000, // 1 minute in ms
+  },
+  // Organizations discovery: 3 discoveries per hour per organization
+  orgDiscovery: {
+    kind: "fixed window" as const,
+    rate: 3,
+    period: 60 * 60 * 1000, // 1 hour in ms
+  },
 };
 
 // ============================================================================
@@ -54,6 +66,8 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   sandboxExecution: RATE_LIMIT_CONFIGS.sandboxExecution,
   authAttempt: RATE_LIMIT_CONFIGS.authAttempt,
   aiChat: RATE_LIMIT_CONFIGS.aiChat,
+  credentialValidation: RATE_LIMIT_CONFIGS.credentialValidation,
+  orgDiscovery: RATE_LIMIT_CONFIGS.orgDiscovery,
 });
 
 // ============================================================================
@@ -98,7 +112,7 @@ export function createRateLimitResponse(retryAfterMs: number): {
 /**
  * Rate limit event types for logging.
  */
-export type RateLimitEventType = "sandboxExecution" | "authAttempt" | "aiChat";
+export type RateLimitEventType = "sandboxExecution" | "authAttempt" | "aiChat" | "credentialValidation" | "orgDiscovery";
 
 /**
  * Rate limit event structure for monitoring.

@@ -17,3 +17,6 @@ export { SettingsPage } from "./SettingsPage";
 export { PartnerPage } from "./PartnerPage";
 export { LandingPage } from "./LandingPage";
 export { ActivityPage } from "./ActivityPage";
+export { AcceptInvitationPage } from "./AcceptInvitationPage";
+export { PrivacyPolicyPage } from "./PrivacyPolicyPage";
+export { TermsOfServicePage } from "./TermsOfServicePage";

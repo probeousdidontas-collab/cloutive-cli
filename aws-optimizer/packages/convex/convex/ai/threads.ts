@@ -14,7 +14,7 @@ import { v } from "convex/values";
 import { mutation, query } from "../_generated/server";
 import { paginationOptsValidator } from "convex/server";
 import { components } from "../_generated/api";
-import { requireAuth } from "../functions";
+import { requireAuth, getAuthenticatedUserId } from "../functions";
 
 /**
  * Create a new chat thread.
@@ -37,13 +37,23 @@ export const create = mutation({
 
 /**
  * List user's chat threads with pagination.
+ * Returns empty page if user is not authenticated.
  */
 export const list = query({
   args: {
     paginationOpts: paginationOptsValidator,
   },
   handler: async (ctx, args) => {
-    const userId = await requireAuth(ctx);
+    const userId = await getAuthenticatedUserId(ctx);
+    
+    // Return empty page if not authenticated
+    if (!userId) {
+      return {
+        page: [],
+        isDone: true,
+        continueCursor: null,
+      };
+    }
 
     const threads = await ctx.runQuery(
       components.agent.threads.listThreadsByUserId,
@@ -65,13 +75,19 @@ export const list = query({
 
 /**
  * Get a single thread by ID.
+ * Returns null if user is not authenticated or thread not found.
  */
 export const get = query({
   args: {
     threadId: v.string(),
   },
   handler: async (ctx, args) => {
-    const userId = await requireAuth(ctx);
+    const userId = await getAuthenticatedUserId(ctx);
+    
+    // Return null if not authenticated
+    if (!userId) {
+      return null;
+    }
 
     try {
       const thread = await ctx.runQuery(components.agent.threads.getThread, {
@@ -81,7 +97,7 @@ export const get = query({
       
       // Verify ownership
       if (thread.userId !== userId) {
-        throw new Error("Unauthorized: Cannot access another user's thread");
+        return null; // Don't reveal thread exists
       }
       
       return {

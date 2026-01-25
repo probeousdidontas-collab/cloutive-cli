@@ -40,19 +40,7 @@ import {
   IconFileTypeCsv,
 } from "@tabler/icons-react";
 import { useQuery, useMutation } from "convex/react";
-
-// API placeholder - in production, import from Convex generated API
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const api: any = {
-  reports: {
-    list: "api.reports.list",
-    generate: "api.reports.generate",
-    listScheduled: "api.reports.listScheduled",
-    createSchedule: "api.reports.createSchedule",
-    deleteSchedule: "api.reports.deleteSchedule",
-    toggleSchedule: "api.reports.toggleSchedule",
-  },
-};
+import { api } from "@aws-optimizer/convex/convex/_generated/api";
 
 type ReportType = "summary" | "detailed" | "recommendation" | "comparison";
 type ReportFormat = "pdf" | "csv";
@@ -179,9 +167,11 @@ export function ReportsPage() {
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
 
-  // Fetch data
-  const reports = useQuery(api.reports.list) as Report[] | undefined;
-  const scheduledReports = useQuery(api.reports.listScheduled) as ScheduledReport[] | undefined;
+  // Fetch data - these APIs work without arguments, they get org from auth context
+  const reportsData = useQuery(api.reports.list);
+  const scheduledReportsData = useQuery(api.reports.listScheduled);
+  const reports = reportsData as Report[] | undefined;
+  const scheduledReports = scheduledReportsData as ScheduledReport[] | undefined;
 
   // Mutations
   const generateReport = useMutation(api.reports.generate);

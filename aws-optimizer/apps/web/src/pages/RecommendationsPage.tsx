@@ -33,18 +33,8 @@ import {
 } from "@tabler/icons-react";
 import { useQuery, useMutation } from "convex/react";
 import { showSuccessToast, showErrorToast } from "../lib/notifications";
-
-// API placeholder - in production, import from Convex generated API
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const api: any = {
-  recommendations: {
-    list: "api.recommendations.list",
-    updateStatus: "api.recommendations.updateStatus",
-  },
-  awsAccounts: {
-    listByOrganization: "api.awsAccounts.listByOrganization",
-  },
-};
+import { api } from "@aws-optimizer/convex/convex/_generated/api";
+import type { Id } from "@aws-optimizer/convex/convex/_generated/dataModel";
 
 interface Recommendation {
   _id: string;
@@ -132,9 +122,10 @@ export function RecommendationsPage() {
   const [sortField, setSortField] = useState<SortField>("savings");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
-  // Fetch data
+  // Fetch data - these APIs work without arguments, they get org from auth context
   const recommendations = useQuery(api.recommendations.list) as Recommendation[] | undefined;
-  const accounts = useQuery(api.awsAccounts.listByOrganization) as AwsAccount[] | undefined;
+  const accountsData = useQuery(api.awsAccounts.listByOrganization);
+  const accounts = accountsData as AwsAccount[] | undefined;
 
   // Mutation for updating status
   const updateStatus = useMutation(api.recommendations.updateStatus);
@@ -253,7 +244,7 @@ export function RecommendationsPage() {
   const handleMarkImplemented = useCallback(
     async (recId: string) => {
       try {
-        await updateStatus({ id: recId, status: "implemented" });
+        await updateStatus({ id: recId as Id<"recommendations">, status: "implemented" });
         showSuccessToast("Recommendation marked as implemented");
       } catch {
         showErrorToast("Failed to update recommendation. Please try again.");
@@ -265,7 +256,7 @@ export function RecommendationsPage() {
   const handleDismiss = useCallback(
     async (recId: string) => {
       try {
-        await updateStatus({ id: recId, status: "dismissed" });
+        await updateStatus({ id: recId as Id<"recommendations">, status: "dismissed" });
         showSuccessToast("Recommendation dismissed");
       } catch {
         showErrorToast("Failed to dismiss recommendation. Please try again.");

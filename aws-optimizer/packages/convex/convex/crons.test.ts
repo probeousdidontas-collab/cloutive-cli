@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { createTestConvex } from "../test.setup";
+import { createTestConvex, type TestCtx } from "../test.setup";
 import {
   createMockOrganization,
   createMockAwsAccount,
@@ -20,10 +20,10 @@ import {
   createMockUser,
   createMockRecommendation,
 } from "./test.helpers";
+import { api } from "./_generated/api";
 
 // Type assertion helper for convex-test
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnyCtx = any;
+type AnyCtx = TestCtx;
 
 describe("Cron Jobs - Daily Cost Collection", () => {
   describe("getAccountsForCollection query", () => {
@@ -47,7 +47,7 @@ describe("Cron Jobs - Daily Cost Collection", () => {
         encryptedSecretAccessKey: "encrypted-secret",
       });
 
-      const result = await t.query("crons:getAccountsForCollection", {});
+      const result = await t.query(api.crons.getAccountsForCollection, {});
 
       expect(result.length).toBe(1);
       expect(result[0].awsAccountId).toBe(account1._id);
@@ -70,7 +70,7 @@ describe("Cron Jobs - Daily Cost Collection", () => {
         encryptedSecretAccessKey: "encrypted-secret",
       });
 
-      const result = await t.query("crons:getAccountsForCollection", {});
+      const result = await t.query(api.crons.getAccountsForCollection, {});
 
       expect(result.length).toBe(1);
       expect(result[0].awsAccountId).toBe(freeAccount._id);
@@ -91,7 +91,7 @@ describe("Cron Jobs - Daily Cost Collection", () => {
         status: "active",
       });
 
-      const result = await t.query("crons:getAccountsForCollection", {});
+      const result = await t.query(api.crons.getAccountsForCollection, {});
 
       expect(result.length).toBe(0);
     });
@@ -106,7 +106,7 @@ describe("Cron Jobs - Daily Cost Collection", () => {
         status: "inactive",
       });
 
-      const result = await t.query("crons:getAccountsForCollection", {});
+      const result = await t.query(api.crons.getAccountsForCollection, {});
 
       expect(result.length).toBe(0);
     });
@@ -121,7 +121,7 @@ describe("Cron Jobs - Daily Cost Collection", () => {
         status: "error",
       });
 
-      const result = await t.query("crons:getAccountsForCollection", {});
+      const result = await t.query(api.crons.getAccountsForCollection, {});
 
       expect(result.length).toBe(0);
     });
@@ -155,7 +155,7 @@ describe("Cron Jobs - Daily Cost Collection", () => {
         encryptedSecretAccessKey: "encrypted-secret2",
       });
 
-      const result = await t.query("crons:getAccountsForCollection", {});
+      const result = await t.query(api.crons.getAccountsForCollection, {});
 
       expect(result.length).toBe(2);
     });
@@ -172,7 +172,7 @@ describe("Cron Jobs - Daily Cost Collection", () => {
         status: "active",
       });
 
-      const result = await t.mutation("crons:scheduleCostCollection", {
+      const result = await t.mutation(api.crons.scheduleCostCollection, {
         awsAccountId: account._id,
         organizationId: org._id,
       });
@@ -216,7 +216,7 @@ describe("Cron Jobs - Daily Cost Collection", () => {
         });
       });
 
-      const result = await t.mutation("crons:scheduleCostCollection", {
+      const result = await t.mutation(api.crons.scheduleCostCollection, {
         awsAccountId: account._id,
         organizationId: org._id,
       });
@@ -244,7 +244,7 @@ describe("Cron Jobs - Daily Cost Collection", () => {
         });
       });
 
-      await t.mutation("crons:updateAnalysisRunStatus", {
+      await t.mutation(api.crons.updateAnalysisRunStatus, {
         analysisRunId,
         status: "completed",
       });
@@ -273,7 +273,7 @@ describe("Cron Jobs - Daily Cost Collection", () => {
         });
       });
 
-      await t.mutation("crons:updateAnalysisRunStatus", {
+      await t.mutation(api.crons.updateAnalysisRunStatus, {
         analysisRunId,
         status: "failed",
       });
@@ -293,7 +293,7 @@ describe("Cron Jobs - Daily Cost Collection", () => {
 
       const org = await createMockOrganization(t, { name: "Test Org", plan: "professional" });
 
-      await t.mutation("crons:recordUsageForAnalysis", {
+      await t.mutation(api.crons.recordUsageForAnalysis, {
         organizationId: org._id,
       });
 
@@ -349,7 +349,7 @@ describe("Cron Jobs - Weekly Summary Email (US-037)", () => {
         });
       });
 
-      const result = await t.query("crons:getOrganizationsForWeeklySummary", {});
+      const result = await t.query(api.crons.getOrganizationsForWeeklySummary, {});
 
       expect(result.length).toBe(1);
       expect(result[0].organizationId).toBe(org);
@@ -378,7 +378,7 @@ describe("Cron Jobs - Weekly Summary Email (US-037)", () => {
         });
       });
 
-      const result = await t.query("crons:getOrganizationsForWeeklySummary", {});
+      const result = await t.query(api.crons.getOrganizationsForWeeklySummary, {});
 
       expect(result.length).toBe(0);
     });
@@ -404,7 +404,7 @@ describe("Cron Jobs - Weekly Summary Email (US-037)", () => {
         });
       });
 
-      const result = await t.query("crons:getOrganizationsForWeeklySummary", {});
+      const result = await t.query(api.crons.getOrganizationsForWeeklySummary, {});
 
       expect(result.length).toBe(0);
     });
@@ -429,7 +429,7 @@ describe("Cron Jobs - Weekly Summary Email (US-037)", () => {
         });
       });
 
-      const result = await t.query("crons:getOrganizationsForWeeklySummary", {});
+      const result = await t.query(api.crons.getOrganizationsForWeeklySummary, {});
 
       expect(result.length).toBe(0);
     });
@@ -463,7 +463,7 @@ describe("Cron Jobs - Weekly Summary Email (US-037)", () => {
         });
       }
 
-      const result = await t.query("crons:generateWeeklySummaryData", {
+      const result = await t.query(api.crons.generateWeeklySummaryData, {
         organizationId: org._id,
       });
 
@@ -505,7 +505,7 @@ describe("Cron Jobs - Weekly Summary Email (US-037)", () => {
         });
       });
 
-      const result = await t.query("crons:generateWeeklySummaryData", {
+      const result = await t.query(api.crons.generateWeeklySummaryData, {
         organizationId: org._id,
       });
 
@@ -536,7 +536,7 @@ describe("Cron Jobs - Weekly Summary Email (US-037)", () => {
         status: "open",
       });
 
-      const result = await t.query("crons:generateWeeklySummaryData", {
+      const result = await t.query(api.crons.generateWeeklySummaryData, {
         organizationId: org._id,
       });
 
@@ -565,7 +565,7 @@ describe("Cron Jobs - Weekly Summary Email (US-037)", () => {
         });
       }
 
-      const result = await t.query("crons:generateWeeklySummaryData", {
+      const result = await t.query(api.crons.generateWeeklySummaryData, {
         organizationId: org._id,
       });
 

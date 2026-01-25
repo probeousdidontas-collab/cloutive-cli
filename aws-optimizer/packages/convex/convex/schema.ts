@@ -36,9 +36,20 @@ const userStatusValidator = v.union(
 
 // AWS account connection types
 const awsConnectionTypeValidator = v.union(
-  v.literal("iam_role"),   // Cross-account IAM role assumption
-  v.literal("access_key"), // Direct access key credentials
-  v.literal("sso")         // AWS SSO/Identity Center
+  v.literal("iam_role"),        // Cross-account IAM role assumption
+  v.literal("access_key"),      // Direct access key credentials
+  v.literal("credentials_file"), // Uploaded credentials file
+  v.literal("sso"),             // AWS SSO/Identity Center
+  v.literal("oidc")             // OIDC/Web Identity federation
+);
+
+// Credential validation status
+const credentialValidationStatusValidator = v.union(
+  v.literal("healthy"),   // Credentials are valid and working
+  v.literal("expiring"),  // Credentials will expire soon (within 7 days)
+  v.literal("expired"),   // Credentials have expired
+  v.literal("invalid"),   // Credentials failed validation
+  v.literal("unknown")    // Not yet validated
 );
 
 // AWS account status
@@ -114,6 +125,26 @@ const activityEntityValidator = v.union(
   v.literal("budget"),
   v.literal("report"),
   v.literal("invitation")
+);
+
+// AWS Organizations discovery status
+const orgDiscoveryStatusValidator = v.union(
+  v.literal("pending"),     // Discovery initiated
+  v.literal("discovering"), // Fetching accounts from AWS
+  v.literal("discovered"),  // Accounts discovered, awaiting approval
+  v.literal("deploying"),   // Deploying IAM roles via StackSets
+  v.literal("completed"),   // All selected accounts connected
+  v.literal("failed")       // Discovery or deployment failed
+);
+
+// Discovered account status
+const discoveredAccountStatusValidator = v.union(
+  v.literal("discovered"),  // Found but not yet processed
+  v.literal("selected"),    // Selected for connection
+  v.literal("connecting"),  // IAM role being deployed
+  v.literal("connected"),   // Successfully connected
+  v.literal("skipped"),     // User chose to skip
+  v.literal("failed")       // Connection failed
 );
 
 export default defineSchema({
@@ -270,20 +301,45 @@ export default defineSchema({
     // AWS account reference
     awsAccountId: v.id("awsAccounts"),
 
-    // Encrypted credential fields (for access_key connection type)
+    // Encrypted credential fields (for access_key and credentials_file connection types)
     encryptedAccessKeyId: v.optional(v.string()),
     encryptedSecretAccessKey: v.optional(v.string()),
+    encryptedSessionToken: v.optional(v.string()), // For temporary credentials
 
     // IAM role configuration (for iam_role connection type)
     roleArn: v.optional(v.string()),        // ARN of the role to assume
     externalId: v.optional(v.string()),     // External ID for role assumption
     sessionDuration: v.optional(v.number()), // Session duration in seconds
 
+    // SSO configuration (for sso connection type)
+    ssoStartUrl: v.optional(v.string()),    // AWS SSO start URL
+    ssoRegion: v.optional(v.string()),      // AWS SSO region
+    ssoAccountId: v.optional(v.string()),   // Target account ID for SSO
+    ssoRoleName: v.optional(v.string()),    // SSO role name to assume
+
+    // OIDC configuration (for oidc connection type)
+    oidcProviderArn: v.optional(v.string()), // ARN of the OIDC identity provider
+    oidcRoleArn: v.optional(v.string()),     // ARN of the role to assume via OIDC
+    oidcAudience: v.optional(v.string()),    // OIDC audience/client ID
+
+    // Credential source tracking (for credentials_file)
+    sourceProfile: v.optional(v.string()),   // Profile name from credentials file
+    sourceFormat: v.optional(v.string()),    // Format: ini, json, env
+
+    // Expiry and validation tracking
+    expiresAt: v.optional(v.number()),       // When credentials expire (timestamp)
+    lastValidatedAt: v.optional(v.number()), // Last successful validation
+    validationStatus: v.optional(credentialValidationStatusValidator),
+    validationMessage: v.optional(v.string()), // Last validation error/success message
+    verifiedAccountNumber: v.optional(v.string()), // AWS account number verified via sts:GetCallerIdentity
+
     // Timestamps
     createdAt: v.number(),
     updatedAt: v.number(),
   })
-    .index("by_awsAccount", ["awsAccountId"]),
+    .index("by_awsAccount", ["awsAccountId"])
+    .index("by_validationStatus", ["validationStatus"])
+    .index("by_expiresAt", ["expiresAt"]),
 
   // ============================================================================
   // SANDBOX EXECUTIONS
@@ -581,6 +637,80 @@ export default defineSchema({
     .index("by_organization", ["organizationId"])
     .index("by_type", ["type"])
     .index("by_createdAt", ["createdAt"]),
+
+  // ============================================================================
+  // AWS ORGANIZATIONS DISCOVERY
+  // ============================================================================
+  // Tracks AWS Organizations discovery sessions for importing member accounts.
+  awsOrgDiscoveries: defineTable({
+    // Organization reference (multi-tenancy)
+    organizationId: v.id("organizations"),
+
+    // Management account used for discovery
+    managementAwsAccountId: v.optional(v.id("awsAccounts")), // If using existing account
+    managementAccountNumber: v.string(), // 12-digit AWS account number
+
+    // Discovery status
+    status: orgDiscoveryStatusValidator,
+    statusMessage: v.optional(v.string()),
+
+    // Discovery results
+    totalAccountsFound: v.optional(v.number()),
+    accountsSelected: v.optional(v.number()),
+    accountsConnected: v.optional(v.number()),
+
+    // StackSet deployment tracking
+    stackSetName: v.optional(v.string()),
+    stackSetOperationId: v.optional(v.string()),
+
+    // Timing
+    startedAt: v.number(),
+    completedAt: v.optional(v.number()),
+
+    // Timestamps
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_organization", ["organizationId"])
+    .index("by_status", ["status"])
+    .index("by_managementAccount", ["managementAccountNumber"]),
+
+  // ============================================================================
+  // DISCOVERED AWS ACCOUNTS
+  // ============================================================================
+  // Member accounts discovered from AWS Organizations.
+  discoveredAwsAccounts: defineTable({
+    // Discovery session reference
+    discoveryId: v.id("awsOrgDiscoveries"),
+
+    // Organization reference (multi-tenancy)
+    organizationId: v.id("organizations"),
+
+    // AWS account details from organizations:ListAccounts
+    accountNumber: v.string(),   // 12-digit AWS account number
+    accountName: v.string(),     // Account name from AWS
+    email: v.string(),           // Root email of the account
+    accountArn: v.string(),      // Full ARN of the account
+    joinedMethod: v.string(),    // "INVITED" or "CREATED"
+    joinedTimestamp: v.number(), // When account joined the org
+    awsStatus: v.string(),       // "ACTIVE", "SUSPENDED", etc.
+
+    // Processing status
+    status: discoveredAccountStatusValidator,
+    statusMessage: v.optional(v.string()),
+
+    // If connected, reference to the AWS account
+    connectedAwsAccountId: v.optional(v.id("awsAccounts")),
+
+    // Timestamps
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_discovery", ["discoveryId"])
+    .index("by_organization", ["organizationId"])
+    .index("by_accountNumber", ["accountNumber"])
+    .index("by_status", ["status"])
+    .index("by_discovery_status", ["discoveryId", "status"]),
 
   // ============================================================================
   // ACTIVITY LOGS

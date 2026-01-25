@@ -12,6 +12,10 @@ import {
   Divider,
   Stack,
   Badge,
+  ActionIcon,
+  useMantineColorScheme,
+  useComputedColorScheme,
+  Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { Outlet, useLocation, useNavigate } from "@tanstack/react-router";
@@ -20,23 +24,27 @@ import {
   IconSettings,
   IconLogout,
   IconChevronDown,
+  IconSun,
+  IconMoon,
 } from "@tabler/icons-react";
 import { useQuery } from "convex/react";
 import { NAV_ITEMS } from "./nav-items";
-
-// API placeholder - in production, import from Convex generated API
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const api: any = {
-  alerts: {
-    getUnacknowledgedCount: "api.alerts.getUnacknowledgedCount",
-  },
-};
+import { api } from "@aws-optimizer/convex/convex/_generated/api";
+import { OrganizationSwitcher } from "./OrganizationSwitcher";
 
 export function AppLayout() {
   const [opened, { toggle }] = useDisclosure();
   const location = useLocation();
   const navigate = useNavigate();
   const { data: session, isPending } = useSession();
+  
+  // Theme toggle
+  const { setColorScheme } = useMantineColorScheme();
+  const computedColorScheme = useComputedColorScheme("light", { getInitialValueInEffect: true });
+  
+  const toggleColorScheme = () => {
+    setColorScheme(computedColorScheme === "dark" ? "light" : "dark");
+  };
   
   // Fetch unacknowledged alert count for navigation badge
   const unacknowledgedCount = useQuery(api.alerts.getUnacknowledgedCount) as number | undefined;
@@ -73,7 +81,22 @@ export function AppLayout() {
             <Title order={3}>AWS Cost Optimizer</Title>
           </Group>
 
-          <Group>
+          <Group gap="sm">
+            {/* Organization Switcher */}
+            {!isPending && user && <OrganizationSwitcher />}
+
+            {/* Theme Toggle */}
+            <Tooltip label={computedColorScheme === "dark" ? "Light mode" : "Dark mode"}>
+              <ActionIcon
+                onClick={toggleColorScheme}
+                variant="subtle"
+                size="lg"
+                aria-label="Toggle color scheme"
+              >
+                {computedColorScheme === "dark" ? <IconSun size={20} /> : <IconMoon size={20} />}
+              </ActionIcon>
+            </Tooltip>
+            
             {!isPending && user && (
               <Menu shadow="md" width={200} position="bottom-end">
                 <Menu.Target>

@@ -30,18 +30,9 @@ import {
   IconRocket,
   IconCalendar,
 } from "@tabler/icons-react";
-import { useQuery, useMutation } from "convex/react";
-
-// API placeholder - in production, import from Convex generated API
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const api: any = {
-  billing: {
-    getSubscription: "api.billing.getSubscription",
-    getUsageStats: "api.billing.getUsageStats",
-    getInvoices: "api.billing.getInvoices",
-    createPortalSession: "api.billing.createPortalSession",
-  },
-};
+// Note: useQuery and useMutation will be used when billing module is implemented
+// import { useQuery, useMutation } from "convex/react";
+// import { api } from "@aws-optimizer/convex/convex/_generated/api";
 
 interface Subscription {
   _id: string;
@@ -118,13 +109,32 @@ function capitalizeFirst(str: string): string {
 }
 
 export function BillingPage() {
-  // Fetch data
-  const subscription = useQuery(api.billing.getSubscription) as Subscription | undefined;
-  const usageStats = useQuery(api.billing.getUsageStats) as UsageStats | undefined;
-  const invoices = useQuery(api.billing.getInvoices) as Invoice[] | undefined;
-
-  // Mutations
-  const createPortalSession = useMutation(api.billing.createPortalSession);
+  // Fetch data - using placeholder until backend module is implemented
+  // TODO: Replace with real Convex queries when billing module is available
+  // const subscription = useQuery(api.billing.getSubscription) as Subscription | undefined;
+  // const usageStats = useQuery(api.billing.getUsageStats) as UsageStats | undefined;
+  // const invoices = useQuery(api.billing.getInvoices) as Invoice[] | undefined;
+  // const createPortalSession = useMutation(api.billing.createPortalSession);
+  
+  // Placeholder data for UI development
+  const subscription: Subscription | undefined = {
+    _id: "placeholder",
+    plan: "free",
+    status: "active",
+    currentPeriodStart: Date.now() - 30 * 24 * 60 * 60 * 1000,
+    currentPeriodEnd: Date.now() + 30 * 24 * 60 * 60 * 1000,
+    pricePerMonth: 0,
+    limits: {
+      accounts: 1,
+      analysisRuns: 5,
+    },
+  };
+  const usageStats: UsageStats | undefined = {
+    accountsConnected: 0,
+    analysisRunsThisMonth: 0,
+    lastAnalysisAt: null,
+  };
+  const invoices: Invoice[] | undefined = [];
 
   // Calculate usage percentages
   const accountsPercentage = subscription && usageStats
@@ -140,19 +150,18 @@ export function BillingPage() {
   const isNearAnyLimit = isNearAccountLimit || isNearAnalysisLimit;
 
   // Handle Stripe portal
+  // TODO: Implement when billing backend module is available
   const handleManageSubscription = useCallback(async () => {
-    const result = await createPortalSession();
-    if (result?.url) {
-      window.open(result.url, "_blank");
-    }
-  }, [createPortalSession]);
+    // Placeholder - will open Stripe portal when implemented
+    console.log("Opening Stripe portal...");
+    alert("Stripe billing portal integration coming soon!");
+  }, []);
 
   const handleUpgrade = useCallback(async () => {
-    const result = await createPortalSession();
-    if (result?.url) {
-      window.open(result.url, "_blank");
-    }
-  }, [createPortalSession]);
+    // Placeholder - will open Stripe portal when implemented
+    console.log("Opening upgrade flow...");
+    alert("Upgrade functionality coming soon!");
+  }, []);
 
   const isLoading = subscription === undefined;
   const isUsageLoading = usageStats === undefined;

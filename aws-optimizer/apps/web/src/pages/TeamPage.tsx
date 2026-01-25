@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import {
   Container,
   Paper,
@@ -31,35 +31,27 @@ import {
   IconCrown,
   IconCheck,
 } from "@tabler/icons-react";
-import { useQuery, useMutation } from "convex/react";
-import { useSession } from "../lib/auth-client";
-
-// API placeholder - in production, import from Convex generated API
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const api: any = {
-  orgMembers: {
-    list: "api.orgMembers.list",
-    invite: "api.orgMembers.invite",
-    updateRole: "api.orgMembers.updateRole",
-    remove: "api.orgMembers.remove",
-  },
-};
+import { useSession, organizationMethods } from "../lib/auth-client";
+import { showSuccessToast, showErrorToast } from "../lib/notifications";
+import { useActiveOrganization } from "../hooks";
 
 type MemberRole = "owner" | "admin" | "member" | "viewer";
 
+// Better Auth organization member structure
 interface Member {
-  _id: string;
-  organizationId: string;
+  id: string;
   userId: string;
   role: MemberRole;
-  createdAt: number;
-  updatedAt: number;
-  user: {
-    _id: string;
+  createdAt?: Date;
+  user?: {
+    id: string;
     name: string;
     email: string;
-    image: string | null;
-  } | null;
+    image?: string | null;
+  };
+  // Flattened fields from getFullOrganization response
+  name?: string;
+  email?: string;
 }
 
 function getRoleColor(role: MemberRole): string {
@@ -87,8 +79,17 @@ function capitalizeFirst(str: string): string {
 }
 
 export function TeamPage() {
-  const { data: session } = useSession();
+  const { data: session, isPending: isSessionPending } = useSession();
   const currentUserId = session?.user?.id;
+  const isAuthenticated = !isSessionPending && session !== null;
+
+  // Fetch organization using custom hook (includes members)
+  const { 
+    organization, 
+    isLoading, 
+    error: orgError, 
+    refetch: refetchOrganization 
+  } = useActiveOrganization(isAuthenticated);
 
   // Modal states
   const [inviteModalOpened, { open: openInviteModal, close: closeInviteModal }] = useDisclosure(false);
@@ -100,13 +101,28 @@ export function TeamPage() {
   const [inviteRole, setInviteRole] = useState<MemberRole>("member");
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
 
-  // Fetch data
-  const members = useQuery(api.orgMembers.list) as Member[] | undefined;
+  // Submitting state (separate from loading)
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Mutations
-  const inviteMember = useMutation(api.orgMembers.invite);
-  const updateRole = useMutation(api.orgMembers.updateRole);
-  const removeMember = useMutation(api.orgMembers.remove);
+  // Map organization members to our Member interface
+  const members: Member[] = useMemo(() => {
+    if (!organization?.members) return [];
+    return organization.members.map((m) => ({
+      id: m.id,
+      userId: m.userId || m.id,
+      role: (m.role || "member") as MemberRole,
+      name: m.name,
+      email: m.email,
+      user: m.user || (m.name && m.email ? { id: m.id, name: m.name, email: m.email } : undefined),
+    }));
+  }, [organization?.members]);
+
+  // Show error toast if organization fetch fails
+  useEffect(() => {
+    if (orgError) {
+      showErrorToast("Failed to load team members");
+    }
+  }, [orgError]);
 
   // Reset invite form
   const resetInviteForm = useCallback(() => {
@@ -114,26 +130,48 @@ export function TeamPage() {
     setInviteRole("member");
   }, []);
 
-  // Handle invite
+  // Handle invite using Better Auth organizationMethods
   const handleInvite = useCallback(async () => {
-    await inviteMember({
-      inviteeEmail: inviteEmail,
-      role: inviteRole,
-    });
-    closeInviteModal();
-    resetInviteForm();
-  }, [inviteEmail, inviteRole, inviteMember, closeInviteModal, resetInviteForm]);
+    setIsSubmitting(true);
+    try {
+      const result = await organizationMethods.inviteMember(inviteEmail, inviteRole);
+      if (result.error) {
+        showErrorToast(`Failed to send invitation: ${result.error.message || "Unknown error"}`);
+      } else {
+        showSuccessToast(`Invitation sent to ${inviteEmail}`);
+        closeInviteModal();
+        resetInviteForm();
+        // Refresh organization (and members)
+        await refetchOrganization();
+      }
+    } catch (error) {
+      showErrorToast("Failed to send invitation");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [inviteEmail, inviteRole, closeInviteModal, resetInviteForm, refetchOrganization]);
 
-  // Handle role change
+  // Handle role change using Better Auth organizationMethods
   const handleRoleChange = useCallback(
     async (memberId: string, newRole: MemberRole) => {
-      await updateRole({
-        memberId,
-        newRole,
-      });
-      setRoleMenuOpened(null);
+      setIsSubmitting(true);
+      try {
+        const result = await organizationMethods.updateMemberRole(memberId, newRole);
+        if (result.error) {
+          showErrorToast(`Failed to update role: ${result.error.message || "Unknown error"}`);
+        } else {
+          showSuccessToast("Role updated successfully");
+          // Refresh organization (and members)
+          await refetchOrganization();
+        }
+      } catch (error) {
+        showErrorToast("Failed to update role");
+      } finally {
+        setRoleMenuOpened(null);
+        setIsSubmitting(false);
+      }
     },
-    [updateRole]
+    [refetchOrganization]
   );
 
   // Handle remove click
@@ -145,21 +183,32 @@ export function TeamPage() {
     [openRemoveModal]
   );
 
-  // Handle confirm remove
+  // Handle confirm remove using Better Auth organizationMethods
   const handleConfirmRemove = useCallback(async () => {
     if (!selectedMember) return;
-    await removeMember({
-      memberId: selectedMember._id,
-    });
-    closeRemoveModal();
-    setSelectedMember(null);
-  }, [selectedMember, removeMember, closeRemoveModal]);
+    setIsSubmitting(true);
+    try {
+      const result = await organizationMethods.removeMember(selectedMember.id);
+      if (result.error) {
+        showErrorToast(`Failed to remove member: ${result.error.message || "Unknown error"}`);
+      } else {
+        showSuccessToast("Member removed successfully");
+        closeRemoveModal();
+        setSelectedMember(null);
+        // Refresh organization (and members)
+        await refetchOrganization();
+      }
+    } catch (error) {
+      showErrorToast("Failed to remove member");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [selectedMember, closeRemoveModal, refetchOrganization]);
 
-  const isLoading = members === undefined;
-  const memberCount = members?.length || 0;
+  const memberCount = members.length;
 
   // Check if current user can manage (is owner or admin)
-  const currentMember = members?.find((m) => m.userId === currentUserId);
+  const currentMember = members.find((m) => m.userId === currentUserId || m.id === currentUserId);
   const canManage = currentMember?.role === "owner" || currentMember?.role === "admin";
 
   return (
@@ -208,7 +257,7 @@ export function TeamPage() {
                   <Skeleton key={i} height={60} />
                 ))}
               </Stack>
-            ) : members && members.length === 0 ? (
+            ) : members.length === 0 ? (
               <Stack align="center" py="xl">
                 <IconUsers size={48} style={{ opacity: 0.3 }} />
                 <Text c="dimmed" ta="center">
@@ -229,28 +278,31 @@ export function TeamPage() {
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
-                  {members?.map((member) => {
-                    const isCurrentUser = member.userId === currentUserId;
+                  {members.map((member) => {
+                    const memberName = member.user?.name || member.name || "Unknown";
+                    const memberEmail = member.user?.email || member.email || "";
+                    const memberImage = member.user?.image;
+                    const isCurrentUser = member.userId === currentUserId || member.id === currentUserId;
                     const isOwner = member.role === "owner";
                     const canModify = canManage && !isCurrentUser && !isOwner;
 
                     return (
                       <Table.Tr
-                        key={member._id}
-                        data-testid={`member-item-${member._id}`}
+                        key={member.id}
+                        data-testid={`member-item-${member.id}`}
                       >
                         <Table.Td>
                           <Group gap="sm">
                             <Avatar
-                              src={member.user?.image}
-                              alt={member.user?.name || ""}
+                              src={memberImage}
+                              alt={memberName}
                               radius="xl"
                               size="sm"
                             >
-                              {member.user?.name?.charAt(0).toUpperCase()}
+                              {memberName.charAt(0).toUpperCase()}
                             </Avatar>
                             <Text fw={500}>
-                              {member.user?.name}
+                              {memberName}
                               {isCurrentUser && (
                                 <Text span c="dimmed" size="xs" ml={4}>
                                   (you)
@@ -260,11 +312,11 @@ export function TeamPage() {
                           </Group>
                         </Table.Td>
                         <Table.Td>
-                          <Text size="sm">{member.user?.email}</Text>
+                          <Text size="sm">{memberEmail}</Text>
                         </Table.Td>
                         <Table.Td>
                           <Badge
-                            data-testid={`role-badge-${member._id}`}
+                            data-testid={`role-badge-${member.id}`}
                             color={getRoleColor(member.role)}
                             variant="light"
                             leftSection={getRoleIcon(member.role)}
@@ -274,7 +326,7 @@ export function TeamPage() {
                         </Table.Td>
                         <Table.Td>
                           <Badge
-                            data-testid={`status-badge-${member._id}`}
+                            data-testid={`status-badge-${member.id}`}
                             color="green"
                             variant="outline"
                             leftSection={<IconCheck size={12} />}
@@ -287,7 +339,7 @@ export function TeamPage() {
                             {canModify && (
                               <>
                                 <Menu
-                                  opened={roleMenuOpened === member._id}
+                                  opened={roleMenuOpened === member.id}
                                   onClose={() => setRoleMenuOpened(null)}
                                   position="bottom-end"
                                 >
@@ -296,8 +348,9 @@ export function TeamPage() {
                                       variant="subtle"
                                       size="xs"
                                       rightSection={<IconChevronDown size={14} />}
-                                      onClick={() => setRoleMenuOpened(member._id)}
+                                      onClick={() => setRoleMenuOpened(member.id)}
                                       aria-label="Change Role"
+                                      disabled={isSubmitting}
                                     >
                                       Change Role
                                     </Button>
@@ -305,19 +358,19 @@ export function TeamPage() {
                                   <Menu.Dropdown data-testid="role-menu">
                                     <Menu.Item
                                       leftSection={<IconShield size={14} />}
-                                      onClick={() => handleRoleChange(member._id, "admin")}
+                                      onClick={() => handleRoleChange(member.id, "admin")}
                                     >
                                       Admin
                                     </Menu.Item>
                                     <Menu.Item
                                       leftSection={<IconUser size={14} />}
-                                      onClick={() => handleRoleChange(member._id, "member")}
+                                      onClick={() => handleRoleChange(member.id, "member")}
                                     >
                                       Member
                                     </Menu.Item>
                                     <Menu.Item
                                       leftSection={<IconEye size={14} />}
-                                      onClick={() => handleRoleChange(member._id, "viewer")}
+                                      onClick={() => handleRoleChange(member.id, "viewer")}
                                     >
                                       Viewer
                                     </Menu.Item>
@@ -330,6 +383,7 @@ export function TeamPage() {
                                     color="red"
                                     onClick={() => handleRemoveClick(member)}
                                     aria-label="Remove"
+                                    disabled={isSubmitting}
                                   >
                                     <IconTrash size={16} />
                                   </ActionIcon>
@@ -405,10 +459,11 @@ export function TeamPage() {
                 closeInviteModal();
                 resetInviteForm();
               }}
+              disabled={isSubmitting}
             >
               Cancel
             </Button>
-            <Button onClick={handleInvite} disabled={!inviteEmail}>
+            <Button onClick={handleInvite} disabled={!inviteEmail || isSubmitting} loading={isSubmitting}>
               Send Invite
             </Button>
           </Group>
@@ -430,7 +485,7 @@ export function TeamPage() {
           <Text>
             Are you sure you want to remove{" "}
             <Text span fw={600}>
-              {selectedMember?.user?.name}
+              {selectedMember?.user?.name || selectedMember?.name || "this member"}
             </Text>{" "}
             from the team?
           </Text>
@@ -447,10 +502,11 @@ export function TeamPage() {
                 closeRemoveModal();
                 setSelectedMember(null);
               }}
+              disabled={isSubmitting}
             >
               Cancel
             </Button>
-            <Button color="red" onClick={handleConfirmRemove}>
+            <Button color="red" onClick={handleConfirmRemove} loading={isSubmitting}>
               Confirm
             </Button>
           </Group>

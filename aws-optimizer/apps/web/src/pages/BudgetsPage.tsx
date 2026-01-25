@@ -34,20 +34,15 @@ import {
   IconAlertTriangle,
 } from "@tabler/icons-react";
 import { useQuery, useMutation } from "convex/react";
+import { api } from "@aws-optimizer/convex/convex/_generated/api";
+import type { Id } from "@aws-optimizer/convex/convex/_generated/dataModel";
 
-// API placeholder - in production, import from Convex generated API
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const api: any = {
-  budgets: {
-    list: "api.budgets.list",
-    create: "api.budgets.create",
-    update: "api.budgets.update",
-    remove: "api.budgets.remove",
-  },
-  awsAccounts: {
-    listByOrganization: "api.awsAccounts.listByOrganization",
-  },
-};
+interface AwsAccount {
+  _id: string;
+  name: string;
+  accountNumber: string;
+  status: string;
+}
 
 interface Budget {
   _id: string;
@@ -126,9 +121,10 @@ export function BudgetsPage() {
   // Selected budget for edit/delete
   const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null);
   
-  // Fetch data
+  // Fetch data - these APIs now work without arguments, they get org from auth context
   const budgets = useQuery(api.budgets.list) as Budget[] | undefined;
-  const accounts = useQuery(api.awsAccounts.listByOrganization) as AwsAccount[] | undefined;
+  const accountsData = useQuery(api.awsAccounts.listByOrganization);
+  const accounts = accountsData as AwsAccount[] | undefined;
   
   // Mutations
   const createBudget = useMutation(api.budgets.create);
@@ -172,7 +168,7 @@ export function BudgetsPage() {
       period: budgetPeriod,
       alertThresholds: selectedThresholds,
       scope: budgetScope,
-      awsAccountId: budgetScope === "account" ? selectedAccountId : null,
+      awsAccountId: budgetScope === "account" ? selectedAccountId as Id<"awsAccounts"> : null,
     });
     closeCreateModal();
     resetForm();
@@ -194,13 +190,13 @@ export function BudgetsPage() {
   const handleUpdateBudget = useCallback(async () => {
     if (!selectedBudget) return;
     await updateBudget({
-      id: selectedBudget._id,
+      id: selectedBudget._id as Id<"budgets">,
       name: budgetName,
       amount: Number(budgetAmount),
       period: budgetPeriod,
       alertThresholds: selectedThresholds,
       scope: budgetScope,
-      awsAccountId: budgetScope === "account" ? selectedAccountId : null,
+      awsAccountId: budgetScope === "account" ? selectedAccountId as Id<"awsAccounts"> : null,
     });
     closeEditModal();
     resetForm();
@@ -216,7 +212,7 @@ export function BudgetsPage() {
   // Handle confirm delete
   const handleConfirmDelete = useCallback(async () => {
     if (!selectedBudget) return;
-    await deleteBudget({ id: selectedBudget._id });
+    await deleteBudget({ id: selectedBudget._id as Id<"budgets"> });
     closeDeleteModal();
     setSelectedBudget(null);
   }, [selectedBudget, deleteBudget, closeDeleteModal]);

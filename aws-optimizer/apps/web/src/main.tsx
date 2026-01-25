@@ -14,7 +14,7 @@ import "@mantine/notifications/styles.css";
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ConvexClientProvider>
-      <MantineProvider theme={theme}>
+      <MantineProvider theme={theme} defaultColorScheme="auto">
         <Notifications position="top-right" />
         <StoreProvider>
           <RouterProvider router={router} />

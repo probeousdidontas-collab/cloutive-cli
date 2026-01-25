@@ -107,10 +107,10 @@ describe("US-019: React Frontend Setup", () => {
   });
 
   describe("AC6: App structure follows pruva-admin pattern", () => {
-    test("should have App component", async () => {
-      const { App } = await import("./App");
-      expect(App).toBeDefined();
-      expect(typeof App).toBe("function");
+    test("should have AppLayout component", async () => {
+      const { AppLayout } = await import("./components/AppShell");
+      expect(AppLayout).toBeDefined();
+      expect(typeof AppLayout).toBe("function");
     });
   });
 });

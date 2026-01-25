@@ -30,39 +30,9 @@ import {
   IconCheck,
   IconDeviceFloppy,
 } from "@tabler/icons-react";
-import { useQuery, useMutation } from "convex/react";
-
-// API placeholder - in production, import from Convex generated API
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const api: any = {
-  organizations: {
-    getById: "api.organizations.getById",
-    update: "api.organizations.update",
-  },
-};
-
-interface NotificationPreferences {
-  emailFrequency: string;
-  alertTypes: string[];
-}
-
-interface OrganizationSettings {
-  enableNotifications?: boolean;
-  defaultRegion?: string;
-  notificationPreferences?: NotificationPreferences;
-  maxUsers?: number;
-  customDomain?: string;
-}
-
-interface Organization {
-  _id: string;
-  name: string;
-  slug: string;
-  plan: string;
-  settings: OrganizationSettings;
-  createdAt: number;
-  updatedAt: number;
-}
+import { useSession, organizationMethods } from "../lib/auth-client";
+import { showSuccessToast, showErrorToast } from "../lib/notifications";
+import { useActiveOrganization } from "../hooks";
 
 const AWS_REGIONS = [
   { value: "us-east-1", label: "US East (N. Virginia)" },
@@ -95,11 +65,16 @@ const ALERT_TYPES = [
 ];
 
 export function SettingsPage() {
-  // Fetch organization data
-  const organization = useQuery(api.organizations.getById) as Organization | undefined;
+  const { data: session, isPending: isSessionPending } = useSession();
+  const isAuthenticated = !isSessionPending && session !== null;
 
-  // Mutations
-  const updateOrganization = useMutation(api.organizations.update);
+  // Fetch organization using custom hook
+  const { 
+    organization, 
+    isLoading, 
+    error: orgError, 
+    refetch: refetchOrganization 
+  } = useActiveOrganization(isAuthenticated);
 
   // Form state
   const [orgName, setOrgName] = useState("");
@@ -109,17 +84,17 @@ export function SettingsPage() {
   const [selectedAlertTypes, setSelectedAlertTypes] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Initialize form state when organization data loads
+  // Initialize form state when organization loads
   useEffect(() => {
     if (organization) {
-      setOrgName(organization.name);
-      setDefaultRegion(organization.settings?.defaultRegion || "us-east-1");
-      setEnableNotifications(organization.settings?.enableNotifications ?? true);
+      setOrgName(organization.name || "");
+      setDefaultRegion(organization.metadata?.defaultRegion || "us-east-1");
+      setEnableNotifications(organization.metadata?.enableNotifications ?? true);
       setEmailFrequency(
-        organization.settings?.notificationPreferences?.emailFrequency || "daily"
+        organization.metadata?.notificationPreferences?.emailFrequency || "daily"
       );
       setSelectedAlertTypes(
-        organization.settings?.notificationPreferences?.alertTypes || [
+        organization.metadata?.notificationPreferences?.alertTypes || [
           "budget_exceeded",
           "anomaly_detected",
           "recommendation_available",
@@ -127,6 +102,13 @@ export function SettingsPage() {
       );
     }
   }, [organization]);
+
+  // Show error toast if organization fetch fails
+  useEffect(() => {
+    if (orgError) {
+      showErrorToast("Failed to load organization settings");
+    }
+  }, [orgError]);
 
   // Handle alert type toggle
   const handleAlertTypeToggle = useCallback((alertType: string) => {
@@ -137,17 +119,17 @@ export function SettingsPage() {
     );
   }, []);
 
-  // Handle save
+  // Handle save using Better Auth organizationMethods
   const handleSave = useCallback(async () => {
     if (!organization) return;
 
     setIsSaving(true);
     try {
-      await updateOrganization({
-        id: organization._id,
+      const result = await organizationMethods.update({
+        organizationId: organization.id,
         name: orgName,
-        settings: {
-          ...organization.settings,
+        metadata: {
+          ...organization.metadata,
           defaultRegion: defaultRegion || undefined,
           enableNotifications,
           notificationPreferences: {
@@ -156,6 +138,16 @@ export function SettingsPage() {
           },
         },
       });
+
+      if (result.error) {
+        showErrorToast(`Failed to save settings: ${result.error.message || "Unknown error"}`);
+      } else {
+        showSuccessToast("Settings saved successfully");
+        // Refresh organization data
+        await refetchOrganization();
+      }
+    } catch (error) {
+      showErrorToast("Failed to save settings");
     } finally {
       setIsSaving(false);
     }
@@ -166,10 +158,8 @@ export function SettingsPage() {
     enableNotifications,
     emailFrequency,
     selectedAlertTypes,
-    updateOrganization,
+    refetchOrganization,
   ]);
-
-  const isLoading = organization === undefined;
 
   return (
     <Container data-testid="settings-page" size="xl" py="xl">
@@ -344,9 +334,9 @@ export function SettingsPage() {
                   block
                   style={{ flex: 1, padding: "12px 16px", fontSize: "14px" }}
                 >
-                  {organization?._id || ""}
+                  {organization?.id || ""}
                 </Code>
-                <CopyButton value={organization?._id || ""} timeout={2000}>
+                <CopyButton value={organization?.id || ""} timeout={2000}>
                   {({ copied, copy }) => (
                     <Tooltip label={copied ? "Copied!" : "Copy Organization ID"} withArrow>
                       <ActionIcon
@@ -366,10 +356,10 @@ export function SettingsPage() {
 
             <Group gap="xs">
               <Badge variant="light" color="blue">
-                Plan: {organization?.plan || "Free"}
+                Plan: {organization?.metadata?.plan || "Free"}
               </Badge>
               <Badge variant="light" color="gray">
-                Created: {organization ? new Date(organization.createdAt).toLocaleDateString() : ""}
+                Created: {organization?.createdAt ? new Date(organization.createdAt).toLocaleDateString() : ""}
               </Badge>
             </Group>
           </Stack>

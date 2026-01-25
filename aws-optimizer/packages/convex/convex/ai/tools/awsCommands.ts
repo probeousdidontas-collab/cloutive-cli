@@ -15,7 +15,7 @@
 import { v } from "convex/values";
 import type { Id } from "../../_generated/dataModel";
 import type { ActionCtx } from "../../_generated/server";
-import { internal } from "../../_generated/api";
+import { api } from "../../_generated/api";
 
 // Tool context type - matches @convex-dev/agent tool context
 interface ToolContext {
@@ -50,7 +50,7 @@ export const aws_executeCommand = Object.assign(
     { ctx }: ToolContext,
     args: { awsAccountId: string; command: string }
   ): Promise<SandboxExecuteResult> {
-    const result = await ctx.runAction(internal.sandbox.executeCommand, {
+    const result = await ctx.runAction(api.sandbox.executeCommand, {
       awsAccountId: args.awsAccountId as Id<"awsAccounts">,
       command: args.command,
     });
@@ -94,7 +94,7 @@ export const aws_getCostData = Object.assign(
 
     const command = `aws ce get-cost-and-usage --time-period Start=${args.startDate},End=${args.endDate} --granularity ${granularity} --metrics BlendedCost UnblendedCost UsageQuantity ${groupByClause}`.trim();
 
-    const result = await ctx.runAction(internal.sandbox.executeCommand, {
+    const result = await ctx.runAction(api.sandbox.executeCommand, {
       awsAccountId: args.awsAccountId as Id<"awsAccounts">,
       command,
     });
@@ -153,7 +153,7 @@ export const aws_listResources = Object.assign(
       resourceCommands[resourceTypeLower] ||
       `aws ${resourceTypeLower} describe-${resourceTypeLower}s ${regionFlag}`.trim();
 
-    const result = await ctx.runAction(internal.sandbox.executeCommand, {
+    const result = await ctx.runAction(api.sandbox.executeCommand, {
       awsAccountId: args.awsAccountId as Id<"awsAccounts">,
       command: command.trim(),
     });
@@ -221,7 +221,7 @@ export const aws_getReservations = Object.assign(
         break;
     }
 
-    const result = await ctx.runAction(internal.sandbox.executeCommand, {
+    const result = await ctx.runAction(api.sandbox.executeCommand, {
       awsAccountId: args.awsAccountId as Id<"awsAccounts">,
       command,
     });
