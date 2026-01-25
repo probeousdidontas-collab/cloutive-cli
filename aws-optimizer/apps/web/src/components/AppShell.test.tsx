@@ -31,6 +31,11 @@ vi.mock("../lib/auth-client", () => ({
   signOut: vi.fn(),
 }));
 
+// Mock Convex hooks
+vi.mock("convex/react", () => ({
+  useQuery: vi.fn(() => 3), // Mock unacknowledged alert count
+}));
+
 // Mock MobX stores
 vi.mock("../stores", () => ({
   useStores: () => ({
