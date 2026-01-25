@@ -305,7 +305,7 @@
         "Show validation errors appropriately"
       ],
       "priority": 20,
-      "passes": false,
+      "passes": true,
       "notes": "Use Mantine form components"
     },
     {
@@ -733,5 +733,5 @@
     }
   ],
   "createdAt": "2025-01-25T06:43:19.629Z",
-  "updatedAt": "2026-01-25T08:53:24.444Z"
+  "updatedAt": "2026-01-25T09:00:27.468Z"
 }
