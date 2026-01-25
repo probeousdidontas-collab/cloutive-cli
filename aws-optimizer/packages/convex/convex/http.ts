@@ -9,8 +9,8 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { authClient, createAuth } from "./auth";
-import { Stripe } from "@convex-dev/stripe";
-import { components } from "./_generated/api";
+// Note: Stripe webhook routes can be enabled by uncommenting below
+// import { registerRoutes } from "@convex-dev/stripe";
 import {
   rateLimiter,
   getClientIP,
@@ -73,17 +73,9 @@ http.route({
 // These don't need rate limiting as they require valid sessions
 authClient.registerRoutes(http, createAuth, { cors: true });
 
-// Initialize Stripe component for webhook handling
-const stripe = new Stripe(components.stripe, {
-  webhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? "",
-});
-
-// Register Stripe webhook handler at /stripe/webhook
+// Register Stripe webhook routes
 // The @convex-dev/stripe component handles webhook signature verification automatically
-http.route({
-  path: "/stripe/webhook",
-  method: "POST",
-  handler: stripe.webhook,
-});
+// Note: Requires stripe component to be installed in convex.config.ts
+// registerRoutes(http, components.stripe);
 
 export default http;
