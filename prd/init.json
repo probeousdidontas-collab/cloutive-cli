@@ -336,7 +336,7 @@
         "Allow creating new threads"
       ],
       "priority": 22,
-      "passes": false,
+      "passes": true,
       "notes": "Primary user interface - AI-first design"
     },
     {
@@ -733,5 +733,5 @@
     }
   ],
   "createdAt": "2025-01-25T06:43:19.629Z",
-  "updatedAt": "2026-01-25T09:29:03.384Z"
+  "updatedAt": "2026-01-25T09:36:55.538Z"
 }

@@ -1,6 +1,6 @@
 import { createRouter, createRootRoute, createRoute, Outlet } from "@tanstack/react-router";
 import { AppLayout } from "./components/AppShell";
-import { LoginPage, SignupPage, ForgotPasswordPage, ChatPage } from "./pages";
+import { LoginPage, SignupPage, ForgotPasswordPage, ChatPage, AccountsPage } from "./pages";
 import { Title, Text, Container, Stack } from "@mantine/core";
 
 // Placeholder page component factory
@@ -160,10 +160,7 @@ const reportsRoute = createRoute({
 const accountsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/accounts",
-  component: createPlaceholderPage(
-    "Accounts",
-    "AWS account connections and management"
-  ),
+  component: AccountsPage,
 });
 
 // Settings route
