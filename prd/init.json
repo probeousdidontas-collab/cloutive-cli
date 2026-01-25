@@ -1,0 +1,737 @@
+{
+  "project": "AWS Cost Optimizer SaaS Platform",
+  "branchName": "feature/aws-cost-optimizer",
+  "description": "An AI-first SaaS platform for AWS cost analysis and optimization. The Convex Agent component drives all analysis workflows autonomously, with Cloudflare Containers providing secure sandbox execution of AWS CLI commands. Includes multi-tenancy, Stripe billing, and partner dashboards.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Initialize monorepo structure",
+      "description": "As a developer, I want a properly structured monorepo so that I can develop the frontend, backend, and sandbox independently",
+      "acceptanceCriteria": [
+        "Create aws-optimizer/ directory with apps/web, apps/sandbox, and packages/convex structure",
+        "Initialize package.json with workspaces configuration",
+        "Set up TypeScript configuration for all packages",
+        "Add root-level scripts for dev, build, and lint",
+        "Create .gitignore with appropriate exclusions"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Foundation for entire project"
+    },
+    {
+      "id": "US-002",
+      "title": "Set up Convex backend with component registrations",
+      "description": "As a developer, I want Convex configured with all required components so that I can build the backend features",
+      "acceptanceCriteria": [
+        "Initialize Convex in packages/convex directory",
+        "Register @convex-dev/agent component in convex.config.ts",
+        "Register @convex-dev/stripe component",
+        "Register @convex-dev/better-auth component",
+        "Register @convex-dev/rate-limiter component",
+        "Register @convex-dev/resend component",
+        "Register @convex-dev/workpool component",
+        "Register @convex-dev/action-retrier component",
+        "Verify convex dev runs without errors"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "Follow pruva-admin/convex/convex.config.ts pattern"
+    },
+    {
+      "id": "US-003",
+      "title": "Define core Convex schema - organizations and users",
+      "description": "As a developer, I want the core database schema defined so that I can implement multi-tenancy",
+      "acceptanceCriteria": [
+        "Create organizations table with name, slug, plan, settings fields",
+        "Create orgMembers table with organizationId, userId, role (owner/admin/member/viewer)",
+        "Create users table matching Better Auth structure with email, name, role, status",
+        "Add appropriate indexes for all tables",
+        "Schema validates successfully with convex dev"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "Follow pruva-admin/convex/schema.ts patterns"
+    },
+    {
+      "id": "US-004",
+      "title": "Define Convex schema - AWS integration tables",
+      "description": "As a developer, I want AWS-related tables defined so that I can store account connections and execution logs",
+      "acceptanceCriteria": [
+        "Create awsAccounts table with organizationId, name, accountNumber, connectionType, status",
+        "Create awsCredentials table with awsAccountId, encrypted credential fields, roleArn",
+        "Create sandboxExecutions table with awsAccountId, command, stdout, stderr, exitCode, executionTime",
+        "Add indexes for efficient querying by organization and account"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "Credentials stored encrypted, decrypted only for sandbox injection"
+    },
+    {
+      "id": "US-005",
+      "title": "Define Convex schema - AI and analysis tables",
+      "description": "As a developer, I want AI and analysis tables defined so that I can store cost data and recommendations",
+      "acceptanceCriteria": [
+        "Create analysisRuns table with organizationId, type, status, startedAt, completedAt",
+        "Create costSnapshots table with awsAccountId, date, totalCost, breakdown by service/region",
+        "Create resources table with awsAccountId, resourceType, resourceId, name, region, tags, monthlyCost",
+        "Create recommendations table with awsAccountId, type, title, description, estimatedSavings, status",
+        "Add indexes for time-series queries and filtering"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": "AI agent populates these tables via tools"
+    },
+    {
+      "id": "US-006",
+      "title": "Define Convex schema - billing and features tables",
+      "description": "As a developer, I want billing and feature tables defined so that I can implement subscriptions and alerts",
+      "acceptanceCriteria": [
+        "Create subscriptions table with organizationId, stripeCustomerId, planId, status, currentPeriodEnd",
+        "Create budgets table with organizationId, awsAccountId, name, amount, period, alertThresholds",
+        "Create alerts table with organizationId, type, title, message, severity, triggeredAt, acknowledgedAt",
+        "Create reports table with organizationId, type, title, status, fileUrl, generatedAt"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": "Stripe component handles webhook signature verification"
+    },
+    {
+      "id": "US-007",
+      "title": "Set up Better Auth authentication",
+      "description": "As a user, I want to sign up and log in with email/password so that I can access my account securely",
+      "acceptanceCriteria": [
+        "Configure Better Auth with email/password provider",
+        "Create auth.ts with getAuthUser and safeGetAuthUser helpers",
+        "Create functions.ts with requireAuth, requireWriteAccess, requirePublishAccess helpers",
+        "Set up HTTP routes for auth endpoints (/api/auth/*)",
+        "Test authentication flow works end-to-end"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": "Follow pruva-admin/convex/auth.ts and functions.ts patterns exactly"
+    },
+    {
+      "id": "US-008",
+      "title": "Implement organization CRUD operations",
+      "description": "As a user, I want to create and manage organizations so that I can organize my AWS accounts",
+      "acceptanceCriteria": [
+        "Create organizations.ts with create, update, delete mutations",
+        "Implement getById and list queries",
+        "Auto-create orgMember with 'owner' role when organization is created",
+        "Require authentication for all operations",
+        "Add activity logging for organization changes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": "Owner is automatically added when org is created"
+    },
+    {
+      "id": "US-009",
+      "title": "Implement organization member management",
+      "description": "As an organization owner, I want to invite and manage team members so that we can collaborate",
+      "acceptanceCriteria": [
+        "Create orgMembers.ts with invite, updateRole, remove mutations",
+        "Implement list query filtered by organizationId",
+        "Only owners and admins can manage members",
+        "Prevent removing the last owner",
+        "Send invite email via Resend component"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": "Role hierarchy: owner > admin > member > viewer"
+    },
+    {
+      "id": "US-010",
+      "title": "Set up Cloudflare Container sandbox worker",
+      "description": "As a developer, I want the sandbox worker deployed so that I can execute AWS CLI commands securely",
+      "acceptanceCriteria": [
+        "Copy poc/ structure to apps/sandbox/",
+        "Verify Dockerfile builds successfully with AWS CLI v2",
+        "Implement /health and /execute endpoints",
+        "Add request validation and AWS command restriction",
+        "Configure wrangler.jsonc with container settings",
+        "Test sandbox locally with wrangler dev"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": "Use existing poc/ implementation as base"
+    },
+    {
+      "id": "US-011",
+      "title": "Create sandbox.ts Convex action for AWS execution",
+      "description": "As a developer, I want a Convex action that calls the sandbox so that I can execute AWS commands from the backend",
+      "acceptanceCriteria": [
+        "Create sandbox.ts with executeCommand action",
+        "Decrypt AWS credentials from awsCredentials table",
+        "Call sandbox worker /execute endpoint with credentials",
+        "Store execution result in sandboxExecutions table",
+        "Apply rate limiting via rate-limiter component",
+        "Use action-retrier for reliability"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": "Credentials decrypted only at execution time"
+    },
+    {
+      "id": "US-012",
+      "title": "Implement AWS account connection - IAM role",
+      "description": "As a user, I want to connect my AWS account via IAM role so that the platform can analyze my costs securely",
+      "acceptanceCriteria": [
+        "Create awsAccounts.ts with connectWithRole mutation",
+        "Accept roleArn and externalId parameters",
+        "Generate CloudFormation template for users to create the role",
+        "Test role assumption via sandbox (aws sts assume-role)",
+        "Store connection in awsAccounts table with 'connected' status"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": "Recommended connection method - most secure"
+    },
+    {
+      "id": "US-013",
+      "title": "Implement AWS account connection - access keys",
+      "description": "As a user, I want to connect my AWS account via access keys so that I have a simpler setup option",
+      "acceptanceCriteria": [
+        "Add connectWithKeys mutation to awsAccounts.ts",
+        "Accept accessKeyId and secretAccessKey parameters",
+        "Encrypt credentials before storing in awsCredentials table",
+        "Test credentials via sandbox (aws sts get-caller-identity)",
+        "Display security warning about key-based access"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": "Less secure but simpler for some users"
+    },
+    {
+      "id": "US-014",
+      "title": "Set up AI Agent with OpenRouter",
+      "description": "As a developer, I want the AI agent configured so that it can drive cost analysis workflows",
+      "acceptanceCriteria": [
+        "Create ai/awsCostAgent.ts with Agent configuration",
+        "Configure OpenRouter with anthropic/claude-sonnet-4 model",
+        "Write comprehensive system instructions for AWS cost optimization",
+        "Set maxSteps to 100 for complex workflows",
+        "Export agent instance for use in chat handlers"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": "Follow pruva-admin AI agent pattern"
+    },
+    {
+      "id": "US-015",
+      "title": "Implement AI agent AWS command tools",
+      "description": "As the AI agent, I want tools to execute AWS commands so that I can gather cost and resource data",
+      "acceptanceCriteria": [
+        "Create ai/tools/awsCommands.ts with aws_executeCommand tool",
+        "Create aws_getCostData tool for Cost Explorer queries",
+        "Create aws_listResources tool for EC2, RDS, S3 inventory",
+        "Create aws_getReservations tool for RI/Savings Plan data",
+        "Tools call sandbox.executeCommand action internally"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": "Tools are called by AI agent autonomously"
+    },
+    {
+      "id": "US-016",
+      "title": "Implement AI agent analysis tools",
+      "description": "As the AI agent, I want tools to save analysis results so that data persists in the database",
+      "acceptanceCriteria": [
+        "Create ai/tools/analysis.ts with analysis_saveCostSnapshot tool",
+        "Create analysis_saveResource tool for inventory items",
+        "Create recommendation_save tool for savings recommendations",
+        "Create analysis_generateReport tool for PDF/CSV generation",
+        "Tools use internal mutations to store data"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": "Agent uses these to persist findings"
+    },
+    {
+      "id": "US-017",
+      "title": "Implement AI agent notification tools",
+      "description": "As the AI agent, I want tools to send notifications so that users are alerted to important findings",
+      "acceptanceCriteria": [
+        "Create ai/tools/notifications.ts with notification_send tool",
+        "Create analysis_createAlert tool for budget/anomaly alerts",
+        "Integrate with Resend component for email delivery",
+        "Store alerts in alerts table for dashboard display"
+      ],
+      "priority": 17,
+      "passes": false,
+      "notes": "Email notifications via Resend"
+    },
+    {
+      "id": "US-018",
+      "title": "Implement AI chat handlers and thread management",
+      "description": "As a user, I want to chat with the AI assistant so that I can ask questions about my AWS costs",
+      "acceptanceCriteria": [
+        "Create ai/chat.ts with sendMessage action for streaming responses",
+        "Create ai/threads.ts with list, create, delete operations",
+        "Implement message history storage via Agent component",
+        "Support streaming responses to frontend",
+        "Require authentication and organization context"
+      ],
+      "priority": 18,
+      "passes": false,
+      "notes": "Follow pruva-admin/convex/ai/chat.ts pattern"
+    },
+    {
+      "id": "US-019",
+      "title": "Set up React frontend with Mantine and TanStack Router",
+      "description": "As a developer, I want the frontend scaffolded so that I can build the user interface",
+      "acceptanceCriteria": [
+        "Initialize Vite React TypeScript project in apps/web",
+        "Install and configure Mantine v8 with theme from pruva-admin",
+        "Set up TanStack Router with file-based routing",
+        "Configure Convex client provider",
+        "Set up MobX stores structure with RootStore pattern",
+        "Verify app runs with npm run dev"
+      ],
+      "priority": 19,
+      "passes": false,
+      "notes": "Follow pruva-admin/src/main.tsx pattern exactly"
+    },
+    {
+      "id": "US-020",
+      "title": "Implement authentication pages",
+      "description": "As a user, I want login and signup pages so that I can access my account",
+      "acceptanceCriteria": [
+        "Create /login route with email/password form",
+        "Create /signup route with registration form",
+        "Create /forgot-password route for password reset",
+        "Integrate with Better Auth endpoints",
+        "Redirect to /chat after successful login",
+        "Show validation errors appropriately"
+      ],
+      "priority": 20,
+      "passes": false,
+      "notes": "Use Mantine form components"
+    },
+    {
+      "id": "US-021",
+      "title": "Create app shell layout with navigation",
+      "description": "As a user, I want a consistent navigation layout so that I can move between sections easily",
+      "acceptanceCriteria": [
+        "Create AppShell component with sidebar navigation",
+        "Add navigation items: Chat, Dashboard, Costs, Resources, Recommendations, Terminal, Budgets, Alerts, Reports, Accounts, Settings, Billing, Team",
+        "Highlight active route in navigation",
+        "Show user profile and logout in header",
+        "Make layout responsive for mobile"
+      ],
+      "priority": 21,
+      "passes": false,
+      "notes": "Mantine AppShell component"
+    },
+    {
+      "id": "US-022",
+      "title": "Implement AI chat interface page",
+      "description": "As a user, I want a chat interface so that I can interact with the AI assistant",
+      "acceptanceCriteria": [
+        "Create /chat route as primary UI",
+        "Display message history with user and assistant messages",
+        "Implement chat input with send button and Enter key support",
+        "Show streaming responses in real-time",
+        "Display thread list in sidebar for conversation history",
+        "Allow creating new threads"
+      ],
+      "priority": 22,
+      "passes": false,
+      "notes": "Primary user interface - AI-first design"
+    },
+    {
+      "id": "US-023",
+      "title": "Implement AWS accounts management page",
+      "description": "As a user, I want to manage my AWS account connections so that I can add or remove accounts",
+      "acceptanceCriteria": [
+        "Create /accounts route with list of connected accounts",
+        "Show connection status, account number, and last sync time",
+        "Add 'Connect Account' button with modal for IAM role or access key",
+        "Provide CloudFormation template download for IAM role setup",
+        "Allow disconnecting accounts with confirmation"
+      ],
+      "priority": 23,
+      "passes": false,
+      "notes": "Connection wizard with multiple options"
+    },
+    {
+      "id": "US-024",
+      "title": "Implement cost dashboard page",
+      "description": "As a user, I want a dashboard showing my AWS costs so that I can understand my spending at a glance",
+      "acceptanceCriteria": [
+        "Create /dashboard route with cost overview",
+        "Show total cost for current month with comparison to previous month",
+        "Display cost breakdown by service (pie chart)",
+        "Display cost trend over time (line chart)",
+        "Show top 5 recommendations with estimated savings",
+        "Support multi-account aggregation"
+      ],
+      "priority": 24,
+      "passes": false,
+      "notes": "Uses data populated by AI agent"
+    },
+    {
+      "id": "US-025",
+      "title": "Implement cost explorer page",
+      "description": "As a user, I want detailed cost exploration so that I can analyze spending patterns",
+      "acceptanceCriteria": [
+        "Create /costs route with filterable cost data",
+        "Filter by date range, service, region, account, tags",
+        "Display costs in table format with sorting",
+        "Show daily/weekly/monthly views",
+        "Allow CSV export of filtered data"
+      ],
+      "priority": 25,
+      "passes": false,
+      "notes": "Detailed drill-down capability"
+    },
+    {
+      "id": "US-026",
+      "title": "Implement resources inventory page",
+      "description": "As a user, I want to see my AWS resources so that I know what I'm paying for",
+      "acceptanceCriteria": [
+        "Create /resources route with resource inventory",
+        "Filter by resource type (EC2, RDS, S3, etc.), region, account",
+        "Display resource details: name, type, region, monthly cost estimate",
+        "Show resource tags for categorization",
+        "Link resources to recommendations where applicable"
+      ],
+      "priority": 26,
+      "passes": false,
+      "notes": "Populated by AI agent discovery"
+    },
+    {
+      "id": "US-027",
+      "title": "Implement recommendations page",
+      "description": "As a user, I want to see savings recommendations so that I can reduce my AWS costs",
+      "acceptanceCriteria": [
+        "Create /recommendations route with AI-generated recommendations",
+        "Display recommendation title, description, and estimated savings",
+        "Filter by type (rightsizing, reserved instances, unused resources, etc.)",
+        "Allow marking recommendations as implemented or dismissed",
+        "Show total potential savings at top"
+      ],
+      "priority": 27,
+      "passes": false,
+      "notes": "AI agent generates recommendations"
+    },
+    {
+      "id": "US-028",
+      "title": "Implement manual terminal page",
+      "description": "As a power user, I want to execute AWS CLI commands directly so that I can debug and explore",
+      "acceptanceCriteria": [
+        "Create /terminal route with command input",
+        "Select AWS account to execute against",
+        "Display command output with syntax highlighting",
+        "Show command history for current session",
+        "Restrict to read-only commands by default with override option"
+      ],
+      "priority": 28,
+      "passes": false,
+      "notes": "Power user feature for debugging"
+    },
+    {
+      "id": "US-029",
+      "title": "Implement budgets management page",
+      "description": "As a user, I want to set budgets so that I can track spending against limits",
+      "acceptanceCriteria": [
+        "Create /budgets route with budget list",
+        "Allow creating budgets with name, amount, period (monthly/quarterly/yearly)",
+        "Set alert thresholds (e.g., 50%, 80%, 100%)",
+        "Display current spend vs. budget with progress bar",
+        "Support per-account or organization-wide budgets"
+      ],
+      "priority": 29,
+      "passes": false,
+      "notes": "Triggers alerts when thresholds exceeded"
+    },
+    {
+      "id": "US-030",
+      "title": "Implement alerts page",
+      "description": "As a user, I want to see and manage alerts so that I can respond to cost issues",
+      "acceptanceCriteria": [
+        "Create /alerts route with alert history",
+        "Display alert type, title, message, severity, and timestamp",
+        "Allow acknowledging alerts",
+        "Filter by type (budget, anomaly, recommendation) and status",
+        "Show unacknowledged alert count in navigation"
+      ],
+      "priority": 30,
+      "passes": false,
+      "notes": "AI agent and budget system trigger alerts"
+    },
+    {
+      "id": "US-031",
+      "title": "Implement reports page",
+      "description": "As a user, I want to generate and view reports so that I can share cost insights with stakeholders",
+      "acceptanceCriteria": [
+        "Create /reports route with report history",
+        "Allow generating new reports (PDF or CSV)",
+        "Select report type: summary, detailed, recommendation, comparison",
+        "Display report status and download link when ready",
+        "Support scheduling reports for automatic generation"
+      ],
+      "priority": 31,
+      "passes": false,
+      "notes": "AI agent generates report content"
+    },
+    {
+      "id": "US-032",
+      "title": "Set up Stripe billing integration",
+      "description": "As a developer, I want Stripe integrated so that users can subscribe to paid plans",
+      "acceptanceCriteria": [
+        "Configure @convex-dev/stripe component with API keys",
+        "Create stripe.ts with customer and subscription management",
+        "Set up webhook handler for subscription events",
+        "Define plan tiers: Free (1 account), Pro (5 accounts), Enterprise (unlimited)",
+        "Create usage-based pricing for AI analysis runs"
+      ],
+      "priority": 32,
+      "passes": false,
+      "notes": "Stripe component handles webhook verification"
+    },
+    {
+      "id": "US-033",
+      "title": "Implement billing page with Stripe portal",
+      "description": "As a user, I want to manage my subscription so that I can upgrade or change my plan",
+      "acceptanceCriteria": [
+        "Create /billing route with current plan display",
+        "Show usage statistics (accounts connected, analysis runs)",
+        "Integrate Stripe Customer Portal for plan management",
+        "Display invoice history",
+        "Show upgrade prompts when approaching limits"
+      ],
+      "priority": 33,
+      "passes": false,
+      "notes": "Stripe Customer Portal handles payment methods"
+    },
+    {
+      "id": "US-034",
+      "title": "Implement team management page",
+      "description": "As an organization owner, I want to manage team members so that we can collaborate",
+      "acceptanceCriteria": [
+        "Create /team route with member list",
+        "Show member name, email, role, and status",
+        "Allow inviting new members via email",
+        "Allow changing member roles (admin, member, viewer)",
+        "Allow removing members with confirmation"
+      ],
+      "priority": 34,
+      "passes": false,
+      "notes": "Only owners and admins can manage team"
+    },
+    {
+      "id": "US-035",
+      "title": "Implement organization settings page",
+      "description": "As an organization admin, I want to configure settings so that I can customize the platform",
+      "acceptanceCriteria": [
+        "Create /settings route with organization configuration",
+        "Allow editing organization name",
+        "Configure default AWS region",
+        "Set notification preferences (email frequency, alert types)",
+        "Show organization ID for support reference"
+      ],
+      "priority": 35,
+      "passes": false,
+      "notes": "Basic settings for MVP"
+    },
+    {
+      "id": "US-036",
+      "title": "Implement cron jobs for scheduled analysis",
+      "description": "As a user, I want automated daily cost collection so that my data is always current",
+      "acceptanceCriteria": [
+        "Create crons.ts with daily cost collection job",
+        "Run for all connected AWS accounts with active subscriptions",
+        "Use Workpool for job prioritization",
+        "Trigger AI agent analysis_run for each account",
+        "Handle failures gracefully with Action Retrier"
+      ],
+      "priority": 36,
+      "passes": false,
+      "notes": "Follow pruva-admin/convex/crons.ts pattern"
+    },
+    {
+      "id": "US-037",
+      "title": "Implement weekly summary email cron",
+      "description": "As a user, I want weekly email summaries so that I stay informed without logging in",
+      "acceptanceCriteria": [
+        "Add weekly cron job to crons.ts",
+        "Generate summary using AI agent",
+        "Include total spend, top changes, and top recommendations",
+        "Send via Resend component",
+        "Respect user notification preferences"
+      ],
+      "priority": 37,
+      "passes": false,
+      "notes": "Email template with cost highlights"
+    },
+    {
+      "id": "US-038",
+      "title": "Implement partner dashboard - organization list",
+      "description": "As a partner, I want to see all my client organizations so that I can manage them from one place",
+      "acceptanceCriteria": [
+        "Create /partner route for partner dashboard",
+        "Display list of managed client organizations",
+        "Show summary stats: total cost, account count, alert count per org",
+        "Allow switching into client org context",
+        "Distinguish partner view with different UI treatment"
+      ],
+      "priority": 38,
+      "passes": false,
+      "notes": "Partner isolation is critical for security"
+    },
+    {
+      "id": "US-039",
+      "title": "Implement partner - client organization creation",
+      "description": "As a partner, I want to create client organizations so that I can onboard new customers",
+      "acceptanceCriteria": [
+        "Add 'Create Client Org' button to partner dashboard",
+        "Collect client organization name and primary contact email",
+        "Create organization with partner as admin",
+        "Send invite email to client primary contact",
+        "Client becomes owner after accepting invite"
+      ],
+      "priority": 39,
+      "passes": false,
+      "notes": "Partners can create orgs on behalf of clients"
+    },
+    {
+      "id": "US-040",
+      "title": "Implement partner - aggregate reporting",
+      "description": "As a partner, I want aggregate reports across clients so that I can show my value",
+      "acceptanceCriteria": [
+        "Add aggregate view to partner dashboard",
+        "Show total managed spend across all clients",
+        "Display total savings recommendations",
+        "Allow generating cross-client reports",
+        "Maintain client data isolation in reports"
+      ],
+      "priority": 40,
+      "passes": false,
+      "notes": "Aggregate view without exposing individual client data"
+    },
+    {
+      "id": "US-041",
+      "title": "Implement landing page with pricing",
+      "description": "As a visitor, I want a landing page so that I can learn about the product and pricing",
+      "acceptanceCriteria": [
+        "Create / route with marketing landing page",
+        "Display product value proposition and features",
+        "Show pricing tiers: Free, Pro, Enterprise",
+        "Include call-to-action buttons for signup",
+        "Add testimonials or social proof section"
+      ],
+      "priority": 41,
+      "passes": false,
+      "notes": "Public page, no auth required"
+    },
+    {
+      "id": "US-042",
+      "title": "Deploy sandbox worker to Cloudflare",
+      "description": "As a developer, I want the sandbox deployed so that the platform can execute AWS commands in production",
+      "acceptanceCriteria": [
+        "Configure production wrangler.jsonc with secrets",
+        "Deploy container with wrangler deploy",
+        "Verify /health endpoint returns 200",
+        "Test /execute endpoint with test credentials",
+        "Document deployment process in README"
+      ],
+      "priority": 42,
+      "passes": false,
+      "notes": "Required before production launch"
+    },
+    {
+      "id": "US-043",
+      "title": "Deploy frontend to Cloudflare Pages",
+      "description": "As a developer, I want the frontend deployed so that users can access the application",
+      "acceptanceCriteria": [
+        "Configure Cloudflare Pages project for apps/web",
+        "Set up environment variables for Convex URL",
+        "Configure build command and output directory",
+        "Set up custom domain if applicable",
+        "Verify app loads and auth works in production"
+      ],
+      "priority": 43,
+      "passes": false,
+      "notes": "Cloudflare Pages for frontend hosting"
+    },
+    {
+      "id": "US-044",
+      "title": "Implement error handling and loading states",
+      "description": "As a user, I want clear feedback during operations so that I know what's happening",
+      "acceptanceCriteria": [
+        "Add loading spinners for async operations",
+        "Display error messages with retry options",
+        "Handle network errors gracefully",
+        "Show empty states for lists with no data",
+        "Add toast notifications for success/error feedback"
+      ],
+      "priority": 44,
+      "passes": false,
+      "notes": "UX polish for production readiness"
+    },
+    {
+      "id": "US-045",
+      "title": "Implement activity logging",
+      "description": "As an admin, I want activity logs so that I can audit actions in my organization",
+      "acceptanceCriteria": [
+        "Create activityLogs table with user, action, entity, timestamp",
+        "Log all mutations (create, update, delete) automatically",
+        "Create /settings/activity route to view logs",
+        "Filter by user, action type, and date range",
+        "Retain logs for 90 days"
+      ],
+      "priority": 45,
+      "passes": false,
+      "notes": "Follow pruva-admin/convex/activityLogs.ts pattern"
+    },
+    {
+      "id": "US-046",
+      "title": "Add rate limiting to critical endpoints",
+      "description": "As a developer, I want rate limiting so that the platform is protected from abuse",
+      "acceptanceCriteria": [
+        "Apply rate limiter to sandbox execution (10 per minute per org)",
+        "Apply rate limiter to auth endpoints (5 attempts per minute per IP)",
+        "Apply rate limiter to AI chat (20 messages per minute per user)",
+        "Return 429 status with retry-after header when limited",
+        "Log rate limit events for monitoring"
+      ],
+      "priority": 46,
+      "passes": false,
+      "notes": "Use @convex-dev/rate-limiter component"
+    },
+    {
+      "id": "US-047",
+      "title": "Write integration tests for core flows",
+      "description": "As a developer, I want tests so that I can verify the platform works correctly",
+      "acceptanceCriteria": [
+        "Set up Vitest with test utilities",
+        "Write tests for organization creation flow",
+        "Write tests for AWS account connection flow",
+        "Write tests for AI chat flow",
+        "Write tests for billing/subscription flow",
+        "All tests pass in CI"
+      ],
+      "priority": 47,
+      "passes": false,
+      "notes": "Follow pruva-admin test patterns"
+    },
+    {
+      "id": "US-048",
+      "title": "Create documentation and README",
+      "description": "As a developer, I want documentation so that I can understand and contribute to the project",
+      "acceptanceCriteria": [
+        "Create comprehensive README.md with project overview",
+        "Document local development setup",
+        "Document environment variables required",
+        "Document deployment process",
+        "Add architecture diagram"
+      ],
+      "priority": 48,
+      "passes": false,
+      "notes": "Final documentation pass"
+    }
+  ],
+  "createdAt": "2025-01-25T06:43:19.629Z",
+  "updatedAt": "2026-01-25T07:04:49.655Z"
+}
