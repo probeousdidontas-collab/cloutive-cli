@@ -412,7 +412,7 @@
         "Show total potential savings at top"
       ],
       "priority": 27,
-      "passes": false,
+      "passes": true,
       "notes": "AI agent generates recommendations"
     },
     {
@@ -733,5 +733,5 @@
     }
   ],
   "createdAt": "2025-01-25T06:43:19.629Z",
-  "updatedAt": "2026-01-25T10:08:00.600Z"
+  "updatedAt": "2026-01-25T10:13:08.822Z"
 }

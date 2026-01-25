@@ -1,6 +1,6 @@
 import { createRouter, createRootRoute, createRoute, Outlet } from "@tanstack/react-router";
 import { AppLayout } from "./components/AppShell";
-import { LoginPage, SignupPage, ForgotPasswordPage, ChatPage, AccountsPage, DashboardPage, CostExplorerPage, ResourcesPage, RecommendationsPage } from "./pages";
+import { LoginPage, SignupPage, ForgotPasswordPage, ChatPage, AccountsPage, DashboardPage, CostExplorerPage, ResourcesPage, RecommendationsPage, TerminalPage } from "./pages";
 import { Title, Text, Container, Stack } from "@mantine/core";
 
 // Placeholder page component factory
@@ -108,10 +108,7 @@ const recommendationsRoute = createRoute({
 const terminalRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/terminal",
-  component: createPlaceholderPage(
-    "Terminal",
-    "AWS CLI terminal interface"
-  ),
+  component: TerminalPage,
 });
 
 // Budgets route
