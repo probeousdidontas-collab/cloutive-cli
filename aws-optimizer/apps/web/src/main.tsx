@@ -8,6 +8,7 @@ import { theme } from "./lib/theme";
 import { ConvexClientProvider } from "./lib/convex";
 import { StoreProvider } from "./stores";
 import "@mantine/core/styles.css";
+import "@mantine/spotlight/styles.css";
 import "@mantine/notifications/styles.css";
 
 createRoot(document.getElementById("root")!).render(

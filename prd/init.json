@@ -153,7 +153,7 @@
         "Test sandbox locally with wrangler dev"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": "Use existing poc/ implementation as base"
     },
     {
@@ -169,7 +169,7 @@
         "Use action-retrier for reliability"
       ],
       "priority": 11,
-      "passes": false,
+      "passes": true,
       "notes": "Credentials decrypted only at execution time"
     },
     {
@@ -184,7 +184,7 @@
         "Store connection in awsAccounts table with 'connected' status"
       ],
       "priority": 12,
-      "passes": false,
+      "passes": true,
       "notes": "Recommended connection method - most secure"
     },
     {
@@ -199,7 +199,7 @@
         "Display security warning about key-based access"
       ],
       "priority": 13,
-      "passes": false,
+      "passes": true,
       "notes": "Less secure but simpler for some users"
     },
     {
@@ -214,7 +214,7 @@
         "Export agent instance for use in chat handlers"
       ],
       "priority": 14,
-      "passes": false,
+      "passes": true,
       "notes": "Follow pruva-admin AI agent pattern"
     },
     {
@@ -229,7 +229,7 @@
         "Tools call sandbox.executeCommand action internally"
       ],
       "priority": 15,
-      "passes": false,
+      "passes": true,
       "notes": "Tools are called by AI agent autonomously"
     },
     {
@@ -244,7 +244,7 @@
         "Tools use internal mutations to store data"
       ],
       "priority": 16,
-      "passes": false,
+      "passes": true,
       "notes": "Agent uses these to persist findings"
     },
     {
@@ -258,7 +258,7 @@
         "Store alerts in alerts table for dashboard display"
       ],
       "priority": 17,
-      "passes": false,
+      "passes": true,
       "notes": "Email notifications via Resend"
     },
     {
@@ -273,7 +273,7 @@
         "Require authentication and organization context"
       ],
       "priority": 18,
-      "passes": false,
+      "passes": true,
       "notes": "Follow pruva-admin/convex/ai/chat.ts pattern"
     },
     {
@@ -733,5 +733,5 @@
     }
   ],
   "createdAt": "2025-01-25T06:43:19.629Z",
-  "updatedAt": "2026-01-25T07:48:07.342Z"
+  "updatedAt": "2026-01-25T08:46:27.957Z"
 }
