@@ -5,6 +5,6 @@ export default defineConfig({
     environment: "node",
     include: ["src/**/*.test.ts"],
     exclude: ["node_modules", "dist", ".wrangler"],
-    testTimeout: 10000,
+    testTimeout: 30000, // Increased for deployment tests
   },
 });

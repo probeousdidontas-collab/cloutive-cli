@@ -7,8 +7,12 @@
     "dev": "wrangler dev",
     "build": "wrangler deploy --dry-run",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "vitest run --exclude 'src/deploy.test.ts'",
+    "test:watch": "vitest --exclude 'src/deploy.test.ts'",
+    "test:deploy": "vitest run src/deploy.test.ts",
+    "deploy": "./deploy.sh",
+    "deploy:staging": "./deploy.sh staging",
+    "deploy:production": "./deploy.sh production"
   },
   "dependencies": {
     "@cloudflare/sandbox": "^0.3.3"

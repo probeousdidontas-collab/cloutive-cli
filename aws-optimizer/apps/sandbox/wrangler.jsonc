@@ -30,5 +30,45 @@
       "tag": "v1",
       "new_sqlite_classes": ["Sandbox"]
     }
-  ]
+  ],
+
+  // Production environment configuration
+  "env": {
+    "production": {
+      "name": "aws-optimizer-sandbox-prod",
+      // Container scaling for production
+      "containers": [
+        {
+          "name": "SANDBOX",
+          "class_name": "Sandbox",
+          "image": "./Dockerfile",
+          "max_instances": 5
+        }
+      ],
+      // Rate limiting and other settings can be configured via secrets
+      // Set secrets using: wrangler secret put <SECRET_NAME> --env production
+      // Required secrets:
+      // - None required (credentials passed per-request)
+      // Optional secrets for future features:
+      // - RATE_LIMIT_API_KEY: API key for rate limiting service
+      // - ALLOWED_ORIGINS: Comma-separated list of allowed CORS origins
+      "vars": {
+        "ENVIRONMENT": "production"
+      }
+    },
+    "staging": {
+      "name": "aws-optimizer-sandbox-staging",
+      "containers": [
+        {
+          "name": "SANDBOX",
+          "class_name": "Sandbox",
+          "image": "./Dockerfile",
+          "max_instances": 2
+        }
+      ],
+      "vars": {
+        "ENVIRONMENT": "staging"
+      }
+    }
+  }
 }
