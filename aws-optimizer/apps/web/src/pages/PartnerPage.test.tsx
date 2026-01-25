@@ -27,6 +27,8 @@ const mockClientOrganizations = [
     totalCost: 45000,
     accountCount: 5,
     alertCount: 3,
+    totalSavings: 5500,
+    recommendationCount: 8,
   },
   {
     _id: "org-2",
@@ -39,6 +41,8 @@ const mockClientOrganizations = [
     totalCost: 12500,
     accountCount: 2,
     alertCount: 1,
+    totalSavings: 1200,
+    recommendationCount: 3,
   },
   {
     _id: "org-3",
@@ -51,14 +55,25 @@ const mockClientOrganizations = [
     totalCost: 125000,
     accountCount: 15,
     alertCount: 8,
+    totalSavings: 18500,
+    recommendationCount: 24,
   },
 ];
 
 const mockCreateClientOrg = vi.fn();
+const mockGenerateAggregateReport = vi.fn();
+
+let queryCallIndex = 0;
 
 vi.mock("convex/react", () => ({
-  useQuery: vi.fn(() => mockClientOrganizations),
-  useMutation: vi.fn(() => mockCreateClientOrg),
+  useQuery: vi.fn(() => {
+    queryCallIndex++;
+    return mockClientOrganizations;
+  }),
+  useMutation: vi.fn((mutationName) => {
+    if (mutationName?.includes?.("generateAggregateReport")) return mockGenerateAggregateReport;
+    return mockCreateClientOrg;
+  }),
 }));
 
 // Mock auth client
@@ -81,8 +96,10 @@ function renderWithProviders(ui: React.ReactElement) {
 
 describe("US-038: Partner Dashboard - Organization List", () => {
   beforeEach(() => {
+    queryCallIndex = 0;
     mockNavigate.mockClear();
     mockCreateClientOrg.mockClear();
+    mockGenerateAggregateReport.mockClear();
   });
 
   afterEach(() => {
@@ -305,8 +322,10 @@ describe("PartnerPage Route Integration", () => {
 
 describe("US-039: Partner - Client Organization Creation", () => {
   beforeEach(() => {
+    queryCallIndex = 0;
     mockNavigate.mockClear();
     mockCreateClientOrg.mockClear();
+    mockGenerateAggregateReport.mockClear();
   });
 
   afterEach(() => {
@@ -429,6 +448,172 @@ describe("US-039: Partner - Client Organization Creation", () => {
       // Modal should have the correct test id
       const modal = screen.getByTestId("create-client-org-modal");
       expect(modal).toHaveAttribute("data-testid", "create-client-org-modal");
+    });
+  });
+});
+
+describe("US-040: Partner - Aggregate Reporting", () => {
+  beforeEach(() => {
+    queryCallIndex = 0;
+    mockNavigate.mockClear();
+    mockCreateClientOrg.mockClear();
+    mockGenerateAggregateReport.mockClear();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe("AC1: Add aggregate view to partner dashboard", () => {
+    test("should display aggregate stats section", () => {
+      renderWithProviders(<PartnerPage />);
+      
+      expect(screen.getByTestId("aggregate-stats")).toBeInTheDocument();
+    });
+
+    test("should display total clients in aggregate view", () => {
+      renderWithProviders(<PartnerPage />);
+      
+      expect(screen.getByTestId("total-clients")).toHaveTextContent("3");
+    });
+
+    test("should display total accounts in aggregate view", () => {
+      renderWithProviders(<PartnerPage />);
+      
+      // 5 + 2 + 15 = 22 total accounts
+      expect(screen.getByTestId("total-accounts")).toHaveTextContent("22");
+    });
+  });
+
+  describe("AC2: Show total managed spend across all clients", () => {
+    test("should display total managed spend", () => {
+      renderWithProviders(<PartnerPage />);
+      
+      // $45,000 + $12,500 + $125,000 = $182,500
+      expect(screen.getByTestId("total-cost")).toBeInTheDocument();
+      expect(screen.getByTestId("total-cost")).toHaveTextContent(/\$182,500/);
+    });
+
+    test("should have label for total managed spend", () => {
+      renderWithProviders(<PartnerPage />);
+      
+      expect(screen.getByText(/Total Cost|Total Spend|Managed Spend/i)).toBeInTheDocument();
+    });
+  });
+
+  describe("AC3: Display total savings recommendations", () => {
+    test("should display total potential savings across all clients", () => {
+      renderWithProviders(<PartnerPage />);
+      
+      // $5,500 + $1,200 + $18,500 = $25,200
+      expect(screen.getByTestId("total-savings")).toBeInTheDocument();
+      expect(screen.getByTestId("total-savings")).toHaveTextContent(/\$25,200/);
+    });
+
+    test("should display total recommendation count", () => {
+      renderWithProviders(<PartnerPage />);
+      
+      // 8 + 3 + 24 = 35 recommendations
+      expect(screen.getByTestId("total-recommendations")).toBeInTheDocument();
+      expect(screen.getByTestId("total-recommendations")).toHaveTextContent("35");
+    });
+
+    test("should show savings for each organization", () => {
+      renderWithProviders(<PartnerPage />);
+      
+      // Each org card should show savings
+      expect(screen.getByTestId("org-item-org-1")).toHaveTextContent(/\$5,500/);
+      expect(screen.getByTestId("org-item-org-2")).toHaveTextContent(/\$1,200/);
+      expect(screen.getByTestId("org-item-org-3")).toHaveTextContent(/\$18,500/);
+    });
+  });
+
+  describe("AC4: Allow generating cross-client reports", () => {
+    test("should have Generate Aggregate Report button", () => {
+      renderWithProviders(<PartnerPage />);
+      
+      expect(screen.getByRole("button", { name: /generate.*report|aggregate report/i })).toBeInTheDocument();
+    });
+
+    test("should open report modal when button clicked", async () => {
+      renderWithProviders(<PartnerPage />);
+      
+      const button = screen.getByRole("button", { name: /generate.*report|aggregate report/i });
+      fireEvent.click(button);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("aggregate-report-modal")).toBeInTheDocument();
+      });
+    });
+
+    test("should have report type selector in modal", async () => {
+      renderWithProviders(<PartnerPage />);
+      
+      const button = screen.getByRole("button", { name: /generate.*report|aggregate report/i });
+      fireEvent.click(button);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("aggregate-report-modal")).toBeInTheDocument();
+      });
+
+      // Should have report type options - wait for them to render
+      await waitFor(() => {
+        expect(screen.getByRole("radio", { name: /summary/i })).toBeInTheDocument();
+      });
+    });
+
+    test("should have client selection in report modal", async () => {
+      renderWithProviders(<PartnerPage />);
+      
+      const button = screen.getByRole("button", { name: /generate.*report|aggregate report/i });
+      fireEvent.click(button);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("aggregate-report-modal")).toBeInTheDocument();
+      });
+
+      // Should have option to select all clients or specific ones
+      await waitFor(() => {
+        expect(screen.getByTestId("client-selection")).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("AC5: Maintain client data isolation in reports", () => {
+    test("should show aggregate totals without exposing individual client details by default", () => {
+      renderWithProviders(<PartnerPage />);
+      
+      // Aggregate stats should be visible
+      expect(screen.getByTestId("aggregate-stats")).toBeInTheDocument();
+      
+      // Individual client details should be in separate cards
+      const orgCards = screen.getAllByTestId(/org-item-/);
+      expect(orgCards.length).toBe(3);
+    });
+
+    test("should have anonymize option in report modal", async () => {
+      renderWithProviders(<PartnerPage />);
+      
+      const button = screen.getByRole("button", { name: /generate.*report|aggregate report/i });
+      fireEvent.click(button);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("aggregate-report-modal")).toBeInTheDocument();
+      });
+
+      // Should have option to anonymize client data
+      await waitFor(() => {
+        expect(screen.getByTestId("anonymize-option")).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("Partner Aggregate Stats Display", () => {
+    test("should display savings percentage of total spend", () => {
+      renderWithProviders(<PartnerPage />);
+      
+      // Total savings $25,200 / Total spend $182,500 ≈ 13.8%
+      expect(screen.getByTestId("savings-percentage")).toBeInTheDocument();
     });
   });
 });

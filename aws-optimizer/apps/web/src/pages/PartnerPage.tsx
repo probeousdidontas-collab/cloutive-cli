@@ -15,6 +15,9 @@ import {
   Divider,
   Modal,
   TextInput,
+  Box,
+  Radio,
+  Switch,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import {
@@ -26,6 +29,9 @@ import {
   IconArrowRight,
   IconBriefcase,
   IconPlus,
+  IconBulb,
+  IconTrendingDown,
+  IconFileText,
 } from "@tabler/icons-react";
 import { useQuery, useMutation } from "convex/react";
 import { useNavigate } from "@tanstack/react-router";
@@ -36,6 +42,7 @@ const api: any = {
   partner: {
     listClientOrganizations: "api.partner.listClientOrganizations",
     createClientOrganization: "api.partner.createClientOrganization",
+    generateAggregateReport: "api.partner.generateAggregateReport",
   },
 };
 
@@ -50,7 +57,11 @@ interface ClientOrganization {
   totalCost: number;
   accountCount: number;
   alertCount: number;
+  totalSavings: number;
+  recommendationCount: number;
 }
+
+type AggregateReportType = "summary" | "detailed" | "savings" | "comparison";
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -80,19 +91,35 @@ export function PartnerPage() {
 
   // Modal state
   const [modalOpened, { open: openModal, close: closeModal }] = useDisclosure(false);
+  const [reportModalOpened, { open: openReportModal, close: closeReportModal }] = useDisclosure(false);
   const [orgName, setOrgName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
+  
+  // Report form state
+  const [reportType, setReportType] = useState<AggregateReportType>("summary");
+  const [includeAllClients, setIncludeAllClients] = useState(true);
+  const [anonymize, setAnonymize] = useState(false);
 
   // Fetch client organizations
   const clientOrganizations = useQuery(api.partner.listClientOrganizations) as ClientOrganization[] | undefined;
 
   // Mutation for creating client org
   const createClientOrg = useMutation(api.partner.createClientOrganization);
+  
+  // Mutation for generating aggregate report
+  const generateAggregateReport = useMutation(api.partner.generateAggregateReport);
 
   // Reset form
   const resetForm = useCallback(() => {
     setOrgName("");
     setClientEmail("");
+  }, []);
+
+  // Reset report form
+  const resetReportForm = useCallback(() => {
+    setReportType("summary");
+    setIncludeAllClients(true);
+    setAnonymize(false);
   }, []);
 
   // Handle create client org
@@ -113,6 +140,8 @@ export function PartnerPage() {
         totalAccounts: 0,
         totalCost: 0,
         totalAlerts: 0,
+        totalSavings: 0,
+        totalRecommendations: 0,
       };
     }
 
@@ -122,10 +151,32 @@ export function PartnerPage() {
         totalAccounts: acc.totalAccounts + org.accountCount,
         totalCost: acc.totalCost + org.totalCost,
         totalAlerts: acc.totalAlerts + org.alertCount,
+        totalSavings: acc.totalSavings + (org.totalSavings || 0),
+        totalRecommendations: acc.totalRecommendations + (org.recommendationCount || 0),
       }),
-      { totalClients: 0, totalAccounts: 0, totalCost: 0, totalAlerts: 0 }
+      { totalClients: 0, totalAccounts: 0, totalCost: 0, totalAlerts: 0, totalSavings: 0, totalRecommendations: 0 }
     );
   }, [clientOrganizations]);
+
+  // Calculate savings percentage
+  const savingsPercentage = useMemo(() => {
+    if (aggregateStats.totalCost === 0) return 0;
+    return (aggregateStats.totalSavings / aggregateStats.totalCost) * 100;
+  }, [aggregateStats]);
+
+  // Handle generate report
+  const handleGenerateReport = useCallback(async () => {
+    // Note: In production, partnerId would come from auth context
+    // For now, we pass the report configuration and the backend
+    // will get the user from the session
+    await generateAggregateReport({
+      reportType,
+      includeAllClients,
+      anonymize,
+    });
+    closeReportModal();
+    resetReportForm();
+  }, [reportType, includeAllClients, anonymize, generateAggregateReport, closeReportModal, resetReportForm]);
 
   // Handle switching to client org context
   const handleManageOrg = useCallback(
@@ -169,8 +220,8 @@ export function PartnerPage() {
         </Group>
 
         {/* Aggregate Stats */}
-        <Paper withBorder p="md">
-          <SimpleGrid cols={{ base: 2, sm: 4 }}>
+        <Paper data-testid="aggregate-stats" withBorder p="md">
+          <SimpleGrid cols={{ base: 2, sm: 3, md: 6 }}>
             {/* Total Clients */}
             <Stack gap="xs">
               <Group gap="xs">
@@ -228,6 +279,44 @@ export function PartnerPage() {
               )}
             </Stack>
 
+            {/* Total Savings */}
+            <Stack gap="xs">
+              <Group gap="xs">
+                <ThemeIcon variant="light" color="teal" size="sm">
+                  <IconTrendingDown size={14} />
+                </ThemeIcon>
+                <Text size="sm" c="dimmed">
+                  Potential Savings
+                </Text>
+              </Group>
+              {isLoading ? (
+                <Skeleton height={36} />
+              ) : (
+                <Text data-testid="total-savings" size="xl" fw={700} c="teal">
+                  {formatCurrency(aggregateStats.totalSavings)}/mo
+                </Text>
+              )}
+            </Stack>
+
+            {/* Total Recommendations */}
+            <Stack gap="xs">
+              <Group gap="xs">
+                <ThemeIcon variant="light" color="orange" size="sm">
+                  <IconBulb size={14} />
+                </ThemeIcon>
+                <Text size="sm" c="dimmed">
+                  Recommendations
+                </Text>
+              </Group>
+              {isLoading ? (
+                <Skeleton height={36} />
+              ) : (
+                <Text data-testid="total-recommendations" size="xl" fw={700}>
+                  {aggregateStats.totalRecommendations}
+                </Text>
+              )}
+            </Stack>
+
             {/* Total Alerts */}
             <Stack gap="xs">
               <Group gap="xs">
@@ -247,6 +336,36 @@ export function PartnerPage() {
               )}
             </Stack>
           </SimpleGrid>
+
+          {/* Savings Percentage Bar */}
+          {!isLoading && aggregateStats.totalCost > 0 && (
+            <>
+              <Divider my="md" />
+              <Group justify="space-between" align="center">
+                <Group gap="xs">
+                  <Text size="sm" c="dimmed">
+                    Savings Opportunity:
+                  </Text>
+                  <Badge
+                    data-testid="savings-percentage"
+                    variant="light"
+                    color="teal"
+                    size="lg"
+                  >
+                    {savingsPercentage.toFixed(1)}% of spend
+                  </Badge>
+                </Group>
+                <Button
+                  variant="light"
+                  color="violet"
+                  leftSection={<IconFileText size={16} />}
+                  onClick={openReportModal}
+                >
+                  Generate Aggregate Report
+                </Button>
+              </Group>
+            </>
+          )}
         </Paper>
 
         {/* Client Organizations List */}
@@ -311,7 +430,7 @@ export function PartnerPage() {
                       </Group>
 
                       {/* Org Stats */}
-                      <SimpleGrid cols={3} spacing="xs">
+                      <SimpleGrid cols={4} spacing="xs">
                         {/* Cost */}
                         <Stack gap={2} align="center">
                           <Text size="xs" c="dimmed">
@@ -319,6 +438,21 @@ export function PartnerPage() {
                           </Text>
                           <Text fw={600} size="sm">
                             {formatCurrency(org.totalCost)}
+                          </Text>
+                        </Stack>
+
+                        {/* Savings */}
+                        <Stack gap={2} align="center">
+                          <Text size="xs" c="dimmed">
+                            Savings
+                          </Text>
+                          <Text
+                            data-testid="org-savings"
+                            fw={600}
+                            size="sm"
+                            c="teal"
+                          >
+                            {formatCurrency(org.totalSavings || 0)}
                           </Text>
                         </Stack>
 
@@ -421,6 +555,79 @@ export function PartnerPage() {
               disabled={!orgName.trim() || !clientEmail.trim()}
             >
               Create
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* Aggregate Report Modal */}
+      <Modal
+        opened={reportModalOpened}
+        onClose={() => {
+          closeReportModal();
+          resetReportForm();
+        }}
+        title="Generate Aggregate Report"
+        size="md"
+        data-testid="aggregate-report-modal"
+      >
+        <Stack gap="md">
+          <Box data-testid="report-type-selector">
+            <Text size="sm" fw={500} mb={4}>
+              Report Type
+            </Text>
+            <Radio.Group
+              value={reportType}
+              onChange={(value) => setReportType(value as AggregateReportType)}
+            >
+              <Stack gap="xs">
+                <Radio value="summary" label="Summary" />
+                <Radio value="detailed" label="Detailed" />
+                <Radio value="savings" label="Savings Analysis" />
+                <Radio value="comparison" label="Client Comparison" />
+              </Stack>
+            </Radio.Group>
+          </Box>
+
+          <Box data-testid="client-selection">
+            <Text size="sm" fw={500} mb={4}>
+              Client Selection
+            </Text>
+            <Switch
+              label="Include all clients"
+              checked={includeAllClients}
+              onChange={(e) => setIncludeAllClients(e.currentTarget.checked)}
+            />
+            {!includeAllClients && (
+              <Text size="xs" c="dimmed" mt="xs">
+                Select specific clients in the list below (feature coming soon)
+              </Text>
+            )}
+          </Box>
+
+          <Box data-testid="anonymize-option">
+            <Switch
+              label="Anonymize client data"
+              description="Replace client names with generic identifiers (Client A, Client B, etc.)"
+              checked={anonymize}
+              onChange={(e) => setAnonymize(e.currentTarget.checked)}
+            />
+          </Box>
+
+          <Divider />
+
+          <Group justify="flex-end" gap="sm">
+            <Button
+              variant="subtle"
+              onClick={() => {
+                closeReportModal();
+                resetReportForm();
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleGenerateReport}>
+              Generate Report
             </Button>
           </Group>
         </Stack>

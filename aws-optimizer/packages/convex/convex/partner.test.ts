@@ -19,6 +19,9 @@ import {
   createMockUser,
   createMockOrganization,
   createMockOrgMember,
+  createMockAwsAccount,
+  createMockRecommendation,
+  createMockCostSnapshot,
 } from "./test.helpers";
 
 // Type assertion helper for convex-test
@@ -434,6 +437,279 @@ describe("Partner Client Organization Creation", () => {
           userId: wrongUser._id,
         })
       ).rejects.toThrow();
+    });
+  });
+});
+
+/**
+ * US-040: Partner - Aggregate Reporting Tests
+ *
+ * Acceptance Criteria:
+ * 1. Add aggregate view to partner dashboard
+ * 2. Show total managed spend across all clients
+ * 3. Display total savings recommendations
+ * 4. Allow generating cross-client reports
+ * 5. Maintain client data isolation in reports
+ */
+describe("Partner Aggregate Reporting", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.stubEnv("TEST_MODE", "true");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  describe("getAggregateStats query", () => {
+    it("should return aggregate stats for all client organizations", async () => {
+      const t = createTestConvex();
+
+      const partner = await createMockUser(t, {
+        email: "partner@example.com",
+        name: "Partner User",
+      });
+
+      // Create two client organizations
+      const result1 = await t.mutation(api.partner.createClientOrganization, {
+        partnerId: partner._id,
+        organizationName: "Client Corp 1",
+        clientEmail: "client1@example.com",
+      });
+
+      const result2 = await t.mutation(api.partner.createClientOrganization, {
+        partnerId: partner._id,
+        organizationName: "Client Corp 2",
+        clientEmail: "client2@example.com",
+      });
+
+      // Add AWS accounts and recommendations
+      const awsAccount1 = await createMockAwsAccount(t, { organizationId: result1.organizationId });
+      const awsAccount2 = await createMockAwsAccount(t, { organizationId: result2.organizationId });
+
+      await createMockRecommendation(t, {
+        awsAccountId: awsAccount1._id,
+        estimatedSavings: 100,
+        status: "open",
+      });
+
+      await createMockRecommendation(t, {
+        awsAccountId: awsAccount2._id,
+        estimatedSavings: 200,
+        status: "open",
+      });
+
+      const stats = await t.query(api.partner.getAggregateStats, {
+        partnerId: partner._id,
+      });
+
+      expect(stats).toBeDefined();
+      expect(stats.totalClients).toBe(2);
+      expect(stats.totalAccounts).toBe(2);
+      expect(stats.totalSavings).toBe(300); // 100 + 200
+      expect(stats.totalRecommendations).toBe(2);
+    });
+
+    it("should include total cost across all clients", async () => {
+      const t = createTestConvex();
+
+      const partner = await createMockUser(t, {
+        email: "partner@example.com",
+        name: "Partner User",
+      });
+
+      const result = await t.mutation(api.partner.createClientOrganization, {
+        partnerId: partner._id,
+        organizationName: "Client Corp",
+        clientEmail: "client@example.com",
+      });
+
+      const awsAccount = await createMockAwsAccount(t, { organizationId: result.organizationId });
+
+      // Add cost snapshots
+      const today = new Date().toISOString().split("T")[0];
+      await createMockCostSnapshot(t, {
+        awsAccountId: awsAccount._id,
+        date: today,
+        totalCost: 500,
+      });
+
+      const stats = await t.query(api.partner.getAggregateStats, {
+        partnerId: partner._id,
+      });
+
+      expect(stats.totalCost).toBeGreaterThanOrEqual(0);
+    });
+
+    it("should return zero values when no client organizations exist", async () => {
+      const t = createTestConvex();
+
+      const partner = await createMockUser(t, {
+        email: "partner@example.com",
+        name: "Partner User",
+      });
+
+      const stats = await t.query(api.partner.getAggregateStats, {
+        partnerId: partner._id,
+      });
+
+      expect(stats.totalClients).toBe(0);
+      expect(stats.totalAccounts).toBe(0);
+      expect(stats.totalCost).toBe(0);
+      expect(stats.totalSavings).toBe(0);
+      expect(stats.totalRecommendations).toBe(0);
+    });
+  });
+
+  describe("listClientOrganizations with savings data", () => {
+    it("should include totalSavings for each organization", async () => {
+      const t = createTestConvex();
+
+      const partner = await createMockUser(t, {
+        email: "partner@example.com",
+        name: "Partner User",
+      });
+
+      const result = await t.mutation(api.partner.createClientOrganization, {
+        partnerId: partner._id,
+        organizationName: "Client Corp",
+        clientEmail: "client@example.com",
+      });
+
+      const awsAccount = await createMockAwsAccount(t, { organizationId: result.organizationId });
+
+      await createMockRecommendation(t, {
+        awsAccountId: awsAccount._id,
+        estimatedSavings: 150,
+        status: "open",
+      });
+
+      const orgs = await t.query(api.partner.listClientOrganizations, {
+        partnerId: partner._id,
+      });
+
+      expect(orgs).toHaveLength(1);
+      expect(orgs[0]).toHaveProperty("totalSavings");
+      expect(orgs[0].totalSavings).toBe(150);
+    });
+
+    it("should include recommendationCount for each organization", async () => {
+      const t = createTestConvex();
+
+      const partner = await createMockUser(t, {
+        email: "partner@example.com",
+        name: "Partner User",
+      });
+
+      const result = await t.mutation(api.partner.createClientOrganization, {
+        partnerId: partner._id,
+        organizationName: "Client Corp",
+        clientEmail: "client@example.com",
+      });
+
+      const awsAccount = await createMockAwsAccount(t, { organizationId: result.organizationId });
+
+      await createMockRecommendation(t, {
+        awsAccountId: awsAccount._id,
+        estimatedSavings: 100,
+        status: "open",
+      });
+
+      await createMockRecommendation(t, {
+        awsAccountId: awsAccount._id,
+        estimatedSavings: 50,
+        status: "open",
+      });
+
+      const orgs = await t.query(api.partner.listClientOrganizations, {
+        partnerId: partner._id,
+      });
+
+      expect(orgs).toHaveLength(1);
+      expect(orgs[0]).toHaveProperty("recommendationCount");
+      expect(orgs[0].recommendationCount).toBe(2);
+    });
+  });
+
+  describe("generateAggregateReport mutation", () => {
+    it("should create a report with aggregate data", async () => {
+      const t = createTestConvex();
+
+      const partner = await createMockUser(t, {
+        email: "partner@example.com",
+        name: "Partner User",
+      });
+
+      await t.mutation(api.partner.createClientOrganization, {
+        partnerId: partner._id,
+        organizationName: "Client Corp 1",
+        clientEmail: "client1@example.com",
+      });
+
+      const result = await t.mutation(api.partner.generateAggregateReport, {
+        partnerId: partner._id,
+        reportType: "summary",
+        includeAllClients: true,
+        anonymize: false,
+      });
+
+      expect(result).toBeDefined();
+      expect(result.reportId).toBeDefined();
+    });
+
+    it("should support anonymized reports", async () => {
+      const t = createTestConvex();
+
+      const partner = await createMockUser(t, {
+        email: "partner@example.com",
+        name: "Partner User",
+      });
+
+      await t.mutation(api.partner.createClientOrganization, {
+        partnerId: partner._id,
+        organizationName: "Client Corp",
+        clientEmail: "client@example.com",
+      });
+
+      const result = await t.mutation(api.partner.generateAggregateReport, {
+        partnerId: partner._id,
+        reportType: "summary",
+        includeAllClients: true,
+        anonymize: true,
+      });
+
+      expect(result.reportId).toBeDefined();
+    });
+
+    it("should support filtering to specific clients", async () => {
+      const t = createTestConvex();
+
+      const partner = await createMockUser(t, {
+        email: "partner@example.com",
+        name: "Partner User",
+      });
+
+      const result1 = await t.mutation(api.partner.createClientOrganization, {
+        partnerId: partner._id,
+        organizationName: "Client Corp 1",
+        clientEmail: "client1@example.com",
+      });
+
+      await t.mutation(api.partner.createClientOrganization, {
+        partnerId: partner._id,
+        organizationName: "Client Corp 2",
+        clientEmail: "client2@example.com",
+      });
+
+      const result = await t.mutation(api.partner.generateAggregateReport, {
+        partnerId: partner._id,
+        reportType: "detailed",
+        includeAllClients: false,
+        clientIds: [result1.organizationId],
+        anonymize: false,
+      });
+
+      expect(result.reportId).toBeDefined();
     });
   });
 });

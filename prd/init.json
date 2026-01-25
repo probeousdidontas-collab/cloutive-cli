@@ -592,7 +592,7 @@
         "Client becomes owner after accepting invite"
       ],
       "priority": 39,
-      "passes": false,
+      "passes": true,
       "notes": "Partners can create orgs on behalf of clients"
     },
     {
@@ -733,5 +733,5 @@
     }
   ],
   "createdAt": "2025-01-25T06:43:19.629Z",
-  "updatedAt": "2026-01-25T11:21:25.284Z"
+  "updatedAt": "2026-01-25T11:30:16.342Z"
 }

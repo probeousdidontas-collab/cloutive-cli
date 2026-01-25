@@ -159,6 +159,21 @@ export const listClientOrganizations = query({
         // Count unacknowledged alerts
         const activeAlerts = alerts.filter((a) => !a.acknowledgedAt);
 
+        // Get recommendations for this org
+        let totalSavings = 0;
+        let recommendationCount = 0;
+
+        for (const account of awsAccounts) {
+          const recommendations = await ctx.db
+            .query("recommendations")
+            .withIndex("by_awsAccount", (q) => q.eq("awsAccountId", account._id))
+            .collect();
+
+          const openRecs = recommendations.filter((r) => r.status === "open");
+          recommendationCount += openRecs.length;
+          totalSavings += openRecs.reduce((sum, r) => sum + r.estimatedSavings, 0);
+        }
+
         return {
           _id: org._id,
           name: org.name,
@@ -170,12 +185,175 @@ export const listClientOrganizations = query({
           totalCost,
           accountCount: awsAccounts.length,
           alertCount: activeAlerts.length,
+          totalSavings,
+          recommendationCount,
         };
       })
     );
 
     // Filter out nulls (deleted organizations)
     return organizations.filter((org): org is NonNullable<typeof org> => org !== null);
+  },
+});
+
+/**
+ * Get aggregate statistics across all client organizations for a partner.
+ * Returns total clients, accounts, cost, savings, and recommendations.
+ */
+export const getAggregateStats = query({
+  args: {
+    partnerId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const { partnerId } = args;
+
+    // Get all client organizations
+    const memberships = await ctx.db
+      .query("orgMembers")
+      .withIndex("by_user", (q) => q.eq("userId", partnerId))
+      .collect();
+
+    const adminMemberships = memberships.filter((m) => m.role === "admin");
+
+    let totalClients = 0;
+    let totalAccounts = 0;
+    let totalCost = 0;
+    let totalSavings = 0;
+    let totalRecommendations = 0;
+    let totalAlerts = 0;
+
+    // Calculate thirty days ago for cost snapshots
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split("T")[0];
+
+    for (const membership of adminMemberships) {
+      const org = await ctx.db.get(membership.organizationId);
+      if (!org) continue;
+
+      totalClients++;
+
+      // Get AWS accounts for this org
+      const awsAccounts = await ctx.db
+        .query("awsAccounts")
+        .withIndex("by_organization", (q) => q.eq("organizationId", membership.organizationId))
+        .collect();
+
+      totalAccounts += awsAccounts.length;
+
+      // Get alerts for this org
+      const alerts = await ctx.db
+        .query("alerts")
+        .withIndex("by_organization", (q) => q.eq("organizationId", membership.organizationId))
+        .collect();
+
+      totalAlerts += alerts.filter((a) => !a.acknowledgedAt).length;
+
+      // Calculate costs and recommendations for each account
+      for (const account of awsAccounts) {
+        // Get cost snapshots
+        const snapshots = await ctx.db
+          .query("costSnapshots")
+          .withIndex("by_awsAccount", (q) => q.eq("awsAccountId", account._id))
+          .collect();
+
+        const recentSnapshots = snapshots.filter((s) => s.date >= thirtyDaysAgoStr);
+        totalCost += recentSnapshots.reduce((sum, s) => sum + s.totalCost, 0);
+
+        // Get recommendations
+        const recommendations = await ctx.db
+          .query("recommendations")
+          .withIndex("by_awsAccount", (q) => q.eq("awsAccountId", account._id))
+          .collect();
+
+        const openRecs = recommendations.filter((r) => r.status === "open");
+        totalRecommendations += openRecs.length;
+        totalSavings += openRecs.reduce((sum, r) => sum + r.estimatedSavings, 0);
+      }
+    }
+
+    return {
+      totalClients,
+      totalAccounts,
+      totalCost,
+      totalSavings,
+      totalRecommendations,
+      totalAlerts,
+      savingsPercentage: totalCost > 0 ? (totalSavings / totalCost) * 100 : 0,
+    };
+  },
+});
+
+/**
+ * Generate an aggregate report across client organizations.
+ * Supports anonymization and client filtering for data isolation.
+ */
+export const generateAggregateReport = mutation({
+  args: {
+    partnerId: v.id("users"),
+    reportType: v.union(
+      v.literal("summary"),
+      v.literal("detailed"),
+      v.literal("savings"),
+      v.literal("comparison")
+    ),
+    includeAllClients: v.boolean(),
+    clientIds: v.optional(v.array(v.id("organizations"))),
+    anonymize: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const { partnerId, reportType, includeAllClients, clientIds, anonymize } = args;
+    const now = Date.now();
+
+    // Verify partner exists
+    const partner = await ctx.db.get(partnerId);
+    if (!partner) {
+      throw new Error("Partner user not found");
+    }
+
+    // Get partner's client organizations
+    const memberships = await ctx.db
+      .query("orgMembers")
+      .withIndex("by_user", (q) => q.eq("userId", partnerId))
+      .collect();
+
+    const adminMemberships = memberships.filter((m) => m.role === "admin");
+
+    // Filter to requested clients if not including all
+    let targetOrgIds = adminMemberships.map((m) => m.organizationId);
+    if (!includeAllClients && clientIds && clientIds.length > 0) {
+      targetOrgIds = targetOrgIds.filter((id) => clientIds.includes(id));
+    }
+
+    // Get a representative org for the report (use first one)
+    const primaryOrgId = targetOrgIds[0];
+    if (!primaryOrgId) {
+      throw new Error("No client organizations found");
+    }
+
+    // Map report type to internal type
+    const reportTypeMap: Record<string, "cost_analysis" | "savings_summary" | "executive_summary"> = {
+      summary: "executive_summary",
+      detailed: "cost_analysis",
+      savings: "savings_summary",
+      comparison: "cost_analysis",
+    };
+
+    // Create the report record
+    const reportId = await ctx.db.insert("reports", {
+      organizationId: primaryOrgId,
+      type: reportTypeMap[reportType] || "executive_summary",
+      title: `Partner Aggregate Report - ${new Date(now).toLocaleDateString()}${anonymize ? " (Anonymized)" : ""}`,
+      status: "pending",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    return {
+      reportId,
+      clientCount: targetOrgIds.length,
+      anonymized: anonymize,
+    };
   },
 });
 
