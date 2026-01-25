@@ -320,7 +320,7 @@
         "Make layout responsive for mobile"
       ],
       "priority": 21,
-      "passes": false,
+      "passes": true,
       "notes": "Mantine AppShell component"
     },
     {
@@ -733,5 +733,5 @@
     }
   ],
   "createdAt": "2025-01-25T06:43:19.629Z",
-  "updatedAt": "2026-01-25T09:00:27.468Z"
+  "updatedAt": "2026-01-25T09:29:03.384Z"
 }

@@ -1,6 +1,6 @@
 import { createRouter, createRootRoute, createRoute, Outlet } from "@tanstack/react-router";
 import { AppLayout } from "./components/AppShell";
-import { LoginPage, SignupPage, ForgotPasswordPage } from "./pages";
+import { LoginPage, SignupPage, ForgotPasswordPage, ChatPage } from "./pages";
 import { Title, Text, Container, Stack } from "@mantine/core";
 
 // Placeholder page component factory
@@ -73,10 +73,7 @@ const forgotPasswordRoute = createRoute({
 const chatRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/chat",
-  component: createPlaceholderPage(
-    "AI Chat",
-    "Chat interface for AWS cost analysis"
-  ),
+  component: ChatPage,
 });
 
 // Dashboard route

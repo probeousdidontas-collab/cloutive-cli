@@ -1,0 +1,329 @@
+import { useState, useRef, useEffect } from "react";
+import {
+  Box,
+  Group,
+  Stack,
+  TextInput,
+  ActionIcon,
+  Paper,
+  Text,
+  ScrollArea,
+  Avatar,
+  Loader,
+  NavLink,
+  Button,
+  Divider,
+  Tooltip,
+} from "@mantine/core";
+import {
+  IconSend,
+  IconPlus,
+  IconMessageCircle,
+  IconRobot,
+  IconUser,
+  IconTrash,
+} from "@tabler/icons-react";
+import { useQuery, useMutation } from "convex/react";
+
+// API placeholder - in production, import from Convex generated API
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const api: any = {
+  ai: {
+    threads: {
+      list: "api.ai.threads.list",
+      create: "api.ai.threads.create",
+      remove: "api.ai.threads.remove",
+    },
+    chat: {
+      listThreadMessages: "api.ai.chat.listThreadMessages",
+      sendMessage: "api.ai.chat.sendMessage",
+    },
+  },
+};
+import { useSession } from "../lib/auth-client";
+
+interface Message {
+  _id: string;
+  role: "user" | "assistant";
+  message: { type: string; text: string } | string;
+  _creationTime: number;
+}
+
+interface Thread {
+  id: string;
+  title: string;
+  createdAt: number;
+  status: string;
+}
+
+function getMessageText(message: Message["message"]): string {
+  if (typeof message === "string") {
+    return message;
+  }
+  if (message && typeof message === "object" && "text" in message) {
+    return message.text;
+  }
+  return "";
+}
+
+export function ChatPage() {
+  const { data: session } = useSession();
+  const [inputValue, setInputValue] = useState("");
+  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+
+
+  // Convex queries and mutations
+  const threads = useQuery(api.ai.threads.list, { paginationOpts: { numItems: 50, cursor: null } });
+  const messages = useQuery(
+    api.ai.chat.listThreadMessages,
+    selectedThreadId ? { threadId: selectedThreadId, paginationOpts: { numItems: 100, cursor: null } } : "skip"
+  );
+  const sendMessage = useMutation(api.ai.chat.sendMessage);
+  const createThread = useMutation(api.ai.threads.create);
+  const removeThread = useMutation(api.ai.threads.remove);
+
+  // Auto-select first thread if none selected
+  useEffect(() => {
+    if (!selectedThreadId && threads?.page && threads.page.length > 0) {
+      setSelectedThreadId(threads.page[0].id);
+    }
+  }, [threads, selectedThreadId]);
+
+  // Scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (scrollAreaRef.current && typeof scrollAreaRef.current.scrollTo === "function") {
+      scrollAreaRef.current.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: "smooth" });
+    }
+  }, [messages]);
+
+  const handleSend = async () => {
+    if (!inputValue.trim() || !selectedThreadId) return;
+
+    const messageText = inputValue.trim();
+    setInputValue("");
+    setIsLoading(true);
+
+    try {
+      await sendMessage({ threadId: selectedThreadId, prompt: messageText });
+    } catch (error) {
+      console.error("Failed to send message:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  const handleNewThread = async () => {
+    try {
+      const result = await createThread({ title: "New conversation" });
+      if (result?.threadId) {
+        setSelectedThreadId(result.threadId);
+      }
+    } catch (error) {
+      console.error("Failed to create thread:", error);
+    }
+  };
+
+  const handleDeleteThread = async (threadId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await removeThread({ threadId });
+      if (selectedThreadId === threadId) {
+        setSelectedThreadId(null);
+      }
+    } catch (error) {
+      console.error("Failed to delete thread:", error);
+    }
+  };
+
+  const messageList = messages?.page || [];
+  const threadList: Thread[] = threads?.page || [];
+
+  return (
+    <Box data-testid="chat-page" h="calc(100vh - 120px)" style={{ display: "flex" }}>
+      {/* Thread Sidebar */}
+      <Paper
+        data-testid="thread-list"
+        w={280}
+        p="md"
+        withBorder
+        style={{ borderRight: "1px solid var(--mantine-color-gray-3)", flexShrink: 0 }}
+      >
+        <Stack gap="sm" h="100%">
+          <Button
+            leftSection={<IconPlus size={16} />}
+            variant="light"
+            fullWidth
+            onClick={handleNewThread}
+            aria-label="New conversation"
+          >
+            New Chat
+          </Button>
+
+          <Divider label="Conversations" labelPosition="center" />
+
+          <ScrollArea style={{ flex: 1 }}>
+            <Stack gap={4}>
+              {threadList.map((thread) => (
+                <NavLink
+                  key={thread.id}
+                  label={thread.title}
+                  leftSection={<IconMessageCircle size={16} />}
+                  active={selectedThreadId === thread.id}
+                  onClick={() => setSelectedThreadId(thread.id)}
+                  rightSection={
+                    <Tooltip label="Delete thread">
+                      <ActionIcon
+                        size="sm"
+                        variant="subtle"
+                        color="red"
+                        onClick={(e) => handleDeleteThread(thread.id, e)}
+                        aria-label="Delete thread"
+                      >
+                        <IconTrash size={14} />
+                      </ActionIcon>
+                    </Tooltip>
+                  }
+                />
+              ))}
+              {threadList.length === 0 && (
+                <Text size="sm" c="dimmed" ta="center" py="md">
+                  No conversations yet
+                </Text>
+              )}
+            </Stack>
+          </ScrollArea>
+        </Stack>
+      </Paper>
+
+      {/* Chat Area */}
+      <Box style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+        {/* Message Area */}
+        <ScrollArea
+          data-testid="message-area"
+          style={{ flex: 1 }}
+          viewportRef={scrollAreaRef}
+          p="md"
+        >
+          <Stack gap="md" maw={800} mx="auto">
+            {messageList.length === 0 && selectedThreadId && (
+              <Paper p="xl" ta="center" c="dimmed">
+                <IconRobot size={48} style={{ opacity: 0.5 }} />
+                <Text size="lg" mt="md">
+                  Start a conversation
+                </Text>
+                <Text size="sm" mt="xs">
+                  Ask me anything about your AWS costs and I'll help you optimize them.
+                </Text>
+              </Paper>
+            )}
+
+            {!selectedThreadId && (
+              <Paper p="xl" ta="center" c="dimmed">
+                <IconMessageCircle size={48} style={{ opacity: 0.5 }} />
+                <Text size="lg" mt="md">
+                  Select or create a conversation
+                </Text>
+                <Text size="sm" mt="xs">
+                  Click "New Chat" to start a new conversation with the AI assistant.
+                </Text>
+              </Paper>
+            )}
+
+            {messageList.map((msg: Message) => (
+              <MessageBubble
+                key={msg._id}
+                role={msg.role}
+                content={getMessageText(msg.message)}
+                userName={session?.user?.name || "User"}
+              />
+            ))}
+
+            {isLoading && (
+              <Group gap="sm" p="md">
+                <Avatar size="sm" radius="xl" color="blue">
+                  <IconRobot size={16} />
+                </Avatar>
+                <Loader size="sm" type="dots" />
+              </Group>
+            )}
+          </Stack>
+        </ScrollArea>
+
+        {/* Chat Input */}
+        <Paper p="md" withBorder style={{ borderTop: "1px solid var(--mantine-color-gray-3)" }}>
+          <Group gap="sm" maw={800} mx="auto">
+            <TextInput
+              data-testid="chat-input"
+              placeholder="Ask about your AWS costs..."
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={!selectedThreadId || isLoading}
+              style={{ flex: 1 }}
+              size="md"
+            />
+            <ActionIcon
+              size="lg"
+              variant="filled"
+              color="blue"
+              onClick={handleSend}
+              disabled={!inputValue.trim() || !selectedThreadId || isLoading}
+              aria-label="Send message"
+            >
+              <IconSend size={18} />
+            </ActionIcon>
+          </Group>
+        </Paper>
+      </Box>
+    </Box>
+  );
+}
+
+interface MessageBubbleProps {
+  role: "user" | "assistant";
+  content: string;
+  userName: string;
+}
+
+function MessageBubble({ role, content, userName }: MessageBubbleProps) {
+  const isUser = role === "user";
+
+  return (
+    <Group
+      align="flex-start"
+      gap="sm"
+      data-message-role={role}
+      style={{ flexDirection: isUser ? "row-reverse" : "row" }}
+    >
+      <Avatar size="sm" radius="xl" color={isUser ? "orange" : "blue"}>
+        {isUser ? <IconUser size={16} /> : <IconRobot size={16} />}
+      </Avatar>
+      <Paper
+        p="sm"
+        radius="md"
+        maw="70%"
+        bg={isUser ? "blue.0" : "gray.0"}
+        style={{
+          borderTopRightRadius: isUser ? 0 : undefined,
+          borderTopLeftRadius: isUser ? undefined : 0,
+        }}
+      >
+        <Text size="xs" c="dimmed" mb={4}>
+          {isUser ? userName : "AWS Cost Assistant"}
+        </Text>
+        <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
+          {content}
+        </Text>
+      </Paper>
+    </Group>
+  );
+}
