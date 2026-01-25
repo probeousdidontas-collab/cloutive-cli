@@ -24,6 +24,7 @@ import {
   IconTrash,
 } from "@tabler/icons-react";
 import { useQuery, useMutation } from "convex/react";
+import { showErrorToast } from "../lib/notifications";
 
 // API placeholder - in production, import from Convex generated API
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -107,8 +108,8 @@ export function ChatPage() {
 
     try {
       await sendMessage({ threadId: selectedThreadId, prompt: messageText });
-    } catch (error) {
-      console.error("Failed to send message:", error);
+    } catch {
+      showErrorToast("Failed to send message. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -127,8 +128,8 @@ export function ChatPage() {
       if (result?.threadId) {
         setSelectedThreadId(result.threadId);
       }
-    } catch (error) {
-      console.error("Failed to create thread:", error);
+    } catch {
+      showErrorToast("Failed to create conversation. Please try again.");
     }
   };
 
@@ -139,8 +140,8 @@ export function ChatPage() {
       if (selectedThreadId === threadId) {
         setSelectedThreadId(null);
       }
-    } catch (error) {
-      console.error("Failed to delete thread:", error);
+    } catch {
+      showErrorToast("Failed to delete conversation. Please try again.");
     }
   };
 

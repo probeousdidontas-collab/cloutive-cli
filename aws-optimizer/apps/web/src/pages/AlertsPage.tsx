@@ -16,6 +16,7 @@ import {
   ActionIcon,
   Tooltip,
 } from "@mantine/core";
+import { EmptyState } from "../components/ui";
 import {
   IconFilter,
   IconFilterOff,
@@ -31,6 +32,7 @@ import {
   IconZzz,
 } from "@tabler/icons-react";
 import { useQuery, useMutation } from "convex/react";
+import { showSuccessToast, showErrorToast } from "../lib/notifications";
 
 // API placeholder - in production, import from Convex generated API
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -218,8 +220,9 @@ export function AlertsPage() {
     async (alertId: string) => {
       try {
         await acknowledgeAlert({ id: alertId });
+        showSuccessToast("Alert acknowledged successfully");
       } catch {
-        // Handle error silently - in production, show toast
+        showErrorToast("Failed to acknowledge alert. Please try again.");
       }
     },
     [acknowledgeAlert]
@@ -329,22 +332,20 @@ export function AlertsPage() {
               ))}
             </>
           ) : filteredAlerts.length === 0 ? (
-            <Paper withBorder p="xl">
-              <Stack align="center" py="xl">
-                <IconBell size={48} style={{ opacity: 0.3 }} />
-                <Text c="dimmed" ta="center">
-                  No alerts found.
-                  {(selectedTypes.length > 0 ||
-                    selectedStatuses.length > 0 ||
-                    selectedSeverities.length > 0) && (
-                    <>
-                      <br />
-                      Try adjusting your filters.
-                    </>
-                  )}
-                </Text>
-              </Stack>
-            </Paper>
+            <EmptyState
+              title="No alerts found"
+              description={
+                selectedTypes.length > 0 ||
+                selectedStatuses.length > 0 ||
+                selectedSeverities.length > 0
+                  ? "Try adjusting your filters to see more results."
+                  : "You're all caught up! No alerts at this time."
+              }
+              icon="bell"
+              variant={selectedTypes.length > 0 || selectedStatuses.length > 0 || selectedSeverities.length > 0 ? "filtered" : "notifications"}
+              actionLabel={selectedTypes.length > 0 || selectedStatuses.length > 0 || selectedSeverities.length > 0 ? "Clear Filters" : undefined}
+              onAction={selectedTypes.length > 0 || selectedStatuses.length > 0 || selectedSeverities.length > 0 ? handleClearFilters : undefined}
+            />
           ) : (
             filteredAlerts.map((alert) => {
               const isAcknowledged = alert.acknowledgedAt !== undefined;

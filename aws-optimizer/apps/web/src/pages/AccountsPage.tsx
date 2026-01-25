@@ -34,6 +34,7 @@ import {
 } from "@tabler/icons-react";
 import { useQuery, useMutation } from "convex/react";
 import { useSession } from "../lib/auth-client";
+import { showSuccessToast, showErrorToast } from "../lib/notifications";
 
 // API placeholder - in production, import from Convex generated API
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -187,8 +188,9 @@ export function AccountsPage() {
       });
       closeDisconnectModal();
       setSelectedAccount(null);
-    } catch (error) {
-      console.error("Failed to disconnect account:", error);
+      showSuccessToast("Account disconnected successfully");
+    } catch {
+      showErrorToast("Failed to disconnect account. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -209,8 +211,9 @@ export function AccountsPage() {
       });
       closeConnectModal();
       resetForms();
-    } catch (error) {
-      console.error("Failed to connect account:", error);
+      showSuccessToast("AWS account connected successfully");
+    } catch {
+      showErrorToast("Failed to connect account. Please verify your credentials and try again.");
     } finally {
       setIsLoading(false);
     }
@@ -231,8 +234,9 @@ export function AccountsPage() {
       });
       closeConnectModal();
       resetForms();
-    } catch (error) {
-      console.error("Failed to connect account:", error);
+      showSuccessToast("AWS account connected successfully");
+    } catch {
+      showErrorToast("Failed to connect account. Please verify your credentials and try again.");
     } finally {
       setIsLoading(false);
     }

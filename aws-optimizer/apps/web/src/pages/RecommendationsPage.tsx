@@ -17,6 +17,7 @@ import {
   Tooltip,
   SimpleGrid,
 } from "@mantine/core";
+import { EmptyState } from "../components/ui";
 import {
   IconFilter,
   IconFilterOff,
@@ -31,6 +32,7 @@ import {
   IconTrendingDown,
 } from "@tabler/icons-react";
 import { useQuery, useMutation } from "convex/react";
+import { showSuccessToast, showErrorToast } from "../lib/notifications";
 
 // API placeholder - in production, import from Convex generated API
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -252,8 +254,9 @@ export function RecommendationsPage() {
     async (recId: string) => {
       try {
         await updateStatus({ id: recId, status: "implemented" });
+        showSuccessToast("Recommendation marked as implemented");
       } catch {
-        // Handle error silently - in production, show toast
+        showErrorToast("Failed to update recommendation. Please try again.");
       }
     },
     [updateStatus]
@@ -263,8 +266,9 @@ export function RecommendationsPage() {
     async (recId: string) => {
       try {
         await updateStatus({ id: recId, status: "dismissed" });
+        showSuccessToast("Recommendation dismissed");
       } catch {
-        // Handle error silently - in production, show toast
+        showErrorToast("Failed to dismiss recommendation. Please try again.");
       }
     },
     [updateStatus]
@@ -496,22 +500,19 @@ export function RecommendationsPage() {
               ))}
             </>
           ) : sortedRecommendations.length === 0 ? (
-            <Paper withBorder p="xl">
-              <Stack align="center" py="xl">
-                <IconBulb size={48} style={{ opacity: 0.3 }} />
-                <Text c="dimmed" ta="center">
-                  No recommendations found.
-                  {(selectedTypes.length > 0 ||
-                    selectedStatuses.length > 0 ||
-                    selectedAccounts.length > 0) && (
-                    <>
-                      <br />
-                      Try adjusting your filters.
-                    </>
-                  )}
-                </Text>
-              </Stack>
-            </Paper>
+            <EmptyState
+              title="No recommendations found"
+              description={
+                selectedTypes.length > 0 ||
+                selectedStatuses.length > 0 ||
+                selectedAccounts.length > 0
+                  ? "Try adjusting your filters to see more results."
+                  : "No optimization recommendations available yet. Connect an AWS account to get started."
+              }
+              variant={selectedTypes.length > 0 || selectedStatuses.length > 0 || selectedAccounts.length > 0 ? "filtered" : "default"}
+              actionLabel={selectedTypes.length > 0 || selectedStatuses.length > 0 || selectedAccounts.length > 0 ? "Clear Filters" : undefined}
+              onAction={selectedTypes.length > 0 || selectedStatuses.length > 0 || selectedAccounts.length > 0 ? handleClearFilters : undefined}
+            />
           ) : (
             sortedRecommendations.map((rec) => (
               <Card
