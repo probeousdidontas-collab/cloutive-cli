@@ -1,5 +1,4 @@
 import { createRouter, createRootRoute, createRoute, Outlet } from "@tanstack/react-router";
-import { AppLayout } from "./components/AppShell";
 import { LoginPage, SignupPage, ForgotPasswordPage, ChatPage, AccountsPage, DashboardPage, CostExplorerPage, ResourcesPage, RecommendationsPage, TerminalPage, BudgetsPage, AlertsPage, ReportsPage, BillingPage, TeamPage, SettingsPage, PartnerPage, LandingPage } from "./pages";
 
 // Root route - just renders Outlet, no layout

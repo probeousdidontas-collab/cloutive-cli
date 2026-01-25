@@ -1,7 +1,29 @@
 import { ConvexProvider, ConvexReactClient } from "convex/react";
 import type { ReactNode } from "react";
 
-const convexUrl = import.meta.env.VITE_CONVEX_URL as string | undefined;
+/**
+ * Get the Convex URL for the client.
+ * In production, use the /convex proxy path to route through our worker.
+ * In development, use the VITE_CONVEX_URL environment variable directly.
+ */
+function getConvexUrl(): string | undefined {
+  const envUrl = import.meta.env.VITE_CONVEX_URL as string | undefined;
+  
+  // In development, use the environment variable directly
+  if (import.meta.env.DEV) {
+    return envUrl;
+  }
+  
+  // In production, use the proxy path if we're on the same origin
+  // This allows the worker to proxy requests to Convex
+  if (typeof window !== 'undefined') {
+    return `${window.location.origin}/convex`;
+  }
+  
+  return envUrl;
+}
+
+const convexUrl = getConvexUrl();
 
 // Create client only if URL is available
 const convex = convexUrl ? new ConvexReactClient(convexUrl) : null;

@@ -1,0 +1,52 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "aws-optimizer-web",
+  "main": "./src/worker.ts",
+  "compatibility_date": "2025-03-25",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  },
+  "observability": {
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "invocation_logs": true,
+      "persist": true
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "persist": true
+    }
+  },
+  "vars": {
+    "VITE_CONVEX_URL": "https://zealous-chipmunk-626.convex.cloud"
+  },
+  // Production environment configuration
+  "env": {
+    "production": {
+      "name": "aws-optimizer-web-prod",
+      "vars": {
+        "VITE_CONVEX_URL": "https://zealous-chipmunk-626.convex.cloud"
+      }
+      // Custom domain can be configured here:
+      // "routes": [
+      //   {
+      //     "pattern": "app.awsoptimizer.com/*",
+      //     "zone_name": "awsoptimizer.com"
+      //   }
+      // ]
+    },
+    "staging": {
+      "name": "aws-optimizer-web-staging",
+      "vars": {
+        "VITE_CONVEX_URL": "https://zealous-chipmunk-626.convex.cloud"
+      }
+    }
+  }
+}

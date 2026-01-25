@@ -7,14 +7,19 @@ import { createAuthClient } from "better-auth/react";
  * Uses same-origin requests (empty baseURL) to work with the proxy.
  */
 
-// Get the Convex site URL for Better Auth
-// In development: Use VITE_CONVEX_SITE_URL to point to Convex directly
-// In production: Use empty string for same-origin requests via proxy
+/**
+ * Get the base URL for Better Auth requests.
+ * In development: Use VITE_CONVEX_SITE_URL to point to Convex directly
+ * In production: Use empty string for same-origin requests via proxy
+ * 
+ * The production worker proxies /api/auth/* to Convex site.
+ */
 const getAuthBaseUrl = () => {
-  if (typeof import.meta !== "undefined" && import.meta.env?.VITE_CONVEX_SITE_URL) {
+  // In development, use the Convex site URL directly
+  if (import.meta.env.DEV && import.meta.env.VITE_CONVEX_SITE_URL) {
     return import.meta.env.VITE_CONVEX_SITE_URL;
   }
-  // Same-origin for production (requests proxied to Convex)
+  // In production, use same-origin (requests proxied by worker to Convex)
   return "";
 };
 
