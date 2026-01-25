@@ -276,6 +276,9 @@ export default defineSchema({
     // Organization reference (multi-tenancy)
     organizationId: v.id("organizations"),
 
+    // Optional AWS account reference (for account-specific runs)
+    awsAccountId: v.optional(v.id("awsAccounts")),
+
     // Analysis configuration
     type: v.union(
       v.literal("full_analysis"),
@@ -301,6 +304,7 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_organization", ["organizationId"])
+    .index("by_awsAccount", ["awsAccountId"])
     .index("by_status", ["status"])
     .index("by_startedAt", ["startedAt"]),
 
