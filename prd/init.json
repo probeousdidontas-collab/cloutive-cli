@@ -289,7 +289,7 @@
         "Verify app runs with npm run dev"
       ],
       "priority": 19,
-      "passes": false,
+      "passes": true,
       "notes": "Follow pruva-admin/src/main.tsx pattern exactly"
     },
     {
@@ -733,5 +733,5 @@
     }
   ],
   "createdAt": "2025-01-25T06:43:19.629Z",
-  "updatedAt": "2026-01-25T08:46:27.957Z"
+  "updatedAt": "2026-01-25T08:53:24.444Z"
 }
