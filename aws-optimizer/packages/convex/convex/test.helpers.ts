@@ -435,6 +435,12 @@ export type ReportType = "cost_analysis" | "savings_summary" | "resource_invento
 // Report status
 export type ReportStatus = "pending" | "generating" | "completed" | "failed";
 
+// Activity log action types
+export type ActivityAction = "create" | "update" | "delete";
+
+// Activity log entity types
+export type ActivityEntityType = "organization" | "aws_account" | "budget" | "report";
+
 // Mock analysis run data structure
 export interface MockAnalysisRun {
   _id: Id<"analysisRuns">;
@@ -885,6 +891,72 @@ export interface CreateMockReportOptions {
   status?: ReportStatus;
   fileUrl?: string;
   generatedAt?: number;
+}
+
+// Mock activity log data structure
+export interface MockActivityLog {
+  _id: Id<"activityLogs">;
+  organizationId: Id<"organizations">;
+  userId: Id<"users">;
+  action: ActivityAction;
+  entityType: ActivityEntityType;
+  entityId: string;
+  details?: {
+    previousValues?: unknown;
+    newValues?: unknown;
+    description?: string;
+  };
+  createdAt: number;
+}
+
+// Options for creating a mock activity log
+export interface CreateMockActivityLogOptions {
+  organizationId: Id<"organizations">;
+  userId: Id<"users">;
+  action?: ActivityAction;
+  entityType?: ActivityEntityType;
+  entityId?: string;
+  details?: {
+    previousValues?: unknown;
+    newValues?: unknown;
+    description?: string;
+  };
+}
+
+/**
+ * Create a mock activity log in the test database.
+ */
+export async function createMockActivityLog(
+  t: ReturnType<typeof convexTest>,
+  options: CreateMockActivityLogOptions
+): Promise<MockActivityLog> {
+  const now = Date.now();
+  const action = options.action ?? "create";
+  const entityType = options.entityType ?? "organization";
+  const entityId = options.entityId ?? `entity-${now}`;
+
+  const logId = await t.run(async (ctx) => {
+    return await ctx.db.insert("activityLogs", {
+      organizationId: options.organizationId,
+      userId: options.userId,
+      action,
+      entityType,
+      entityId,
+      details: options.details,
+      createdAt: now,
+    });
+  });
+
+  return {
+    _id: logId as Id<"activityLogs">,
+    organizationId: options.organizationId,
+    userId: options.userId,
+    action,
+    entityType,
+    entityId,
+    details: options.details,
+    createdAt: now,
+  };
 }
 
 /**

@@ -6,14 +6,18 @@
   "scripts": {
     "dev": "wrangler dev",
     "build": "wrangler deploy --dry-run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@cloudflare/sandbox": "^0.3.3"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241218.0",
+    "@types/node": "^22.15.32",
     "typescript": "^5.7.2",
+    "vitest": "^4.0.17",
     "wrangler": "^4.10.0"
   }
 }

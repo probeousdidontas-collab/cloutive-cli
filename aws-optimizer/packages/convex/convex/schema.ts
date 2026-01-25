@@ -100,6 +100,21 @@ const reportStatusValidator = v.union(
   v.literal("failed")
 );
 
+// Activity log action types
+const activityActionValidator = v.union(
+  v.literal("create"),
+  v.literal("update"),
+  v.literal("delete")
+);
+
+// Activity log entity types
+const activityEntityValidator = v.union(
+  v.literal("organization"),
+  v.literal("aws_account"),
+  v.literal("budget"),
+  v.literal("report")
+);
+
 export default defineSchema({
   // ============================================================================
   // ORGANIZATIONS
@@ -495,4 +510,35 @@ export default defineSchema({
     .index("by_type", ["type"])
     .index("by_status", ["status"])
     .index("by_generatedAt", ["generatedAt"]),
+
+  // ============================================================================
+  // ACTIVITY LOGS
+  // ============================================================================
+  // Tracks changes to entities for audit purposes.
+  activityLogs: defineTable({
+    // Organization reference (multi-tenancy)
+    organizationId: v.id("organizations"),
+
+    // User who performed the action
+    userId: v.id("users"),
+
+    // Action details
+    action: activityActionValidator,
+    entityType: activityEntityValidator,
+    entityId: v.string(), // ID of the entity that was changed
+
+    // Change details (optional metadata about what changed)
+    details: v.optional(v.object({
+      previousValues: v.optional(v.any()),
+      newValues: v.optional(v.any()),
+      description: v.optional(v.string()),
+    })),
+
+    // Timestamp
+    createdAt: v.number(),
+  })
+    .index("by_organization", ["organizationId"])
+    .index("by_user", ["userId"])
+    .index("by_entityType", ["entityType"])
+    .index("by_createdAt", ["createdAt"]),
 });
