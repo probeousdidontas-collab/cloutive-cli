@@ -146,12 +146,14 @@ const partnerRoute = createRoute({
   component: PartnerPage,
 });
 
-// Route tree
+// Route tree - authLayoutRoute contains auth-related routes
 const routeTree = rootRoute.addChildren([
-  indexRoute,
-  loginRoute,
-  signupRoute,
-  forgotPasswordRoute,
+  authLayoutRoute.addChildren([
+    indexRoute,
+    loginRoute,
+    signupRoute,
+    forgotPasswordRoute,
+  ]),
   chatRoute,
   dashboardRoute,
   costsRoute,
