@@ -512,6 +512,34 @@ export default defineSchema({
     .index("by_generatedAt", ["generatedAt"]),
 
   // ============================================================================
+  // USAGE RECORDS
+  // ============================================================================
+  // Tracks usage for billing purposes (AI analysis runs, etc.).
+  usageRecords: defineTable({
+    // Organization reference (multi-tenancy)
+    organizationId: v.id("organizations"),
+
+    // Usage type
+    type: v.union(
+      v.literal("analysis_run"),
+      v.literal("api_call")
+    ),
+
+    // Quantity of usage
+    quantity: v.number(),
+
+    // Billing period
+    billingPeriodStart: v.number(),
+    billingPeriodEnd: v.number(),
+
+    // Timestamp
+    createdAt: v.number(),
+  })
+    .index("by_organization", ["organizationId"])
+    .index("by_type", ["type"])
+    .index("by_createdAt", ["createdAt"]),
+
+  // ============================================================================
   // ACTIVITY LOGS
   // ============================================================================
   // Tracks changes to entities for audit purposes.
