@@ -1,6 +1,6 @@
 import { createRouter, createRootRoute, createRoute, Outlet } from "@tanstack/react-router";
 import { AppLayout } from "./components/AppShell";
-import { LoginPage, SignupPage, ForgotPasswordPage, ChatPage, AccountsPage, DashboardPage, CostExplorerPage, ResourcesPage, RecommendationsPage, TerminalPage, BudgetsPage, AlertsPage, ReportsPage, BillingPage, TeamPage, SettingsPage } from "./pages";
+import { LoginPage, SignupPage, ForgotPasswordPage, ChatPage, AccountsPage, DashboardPage, CostExplorerPage, ResourcesPage, RecommendationsPage, TerminalPage, BudgetsPage, AlertsPage, ReportsPage, BillingPage, TeamPage, SettingsPage, PartnerPage } from "./pages";
 import { Title, Text, Container, Stack } from "@mantine/core";
 
 // Placeholder page component factory
@@ -160,6 +160,13 @@ const teamRoute = createRoute({
   component: TeamPage,
 });
 
+// Partner route
+const partnerRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/partner",
+  component: PartnerPage,
+});
+
 // Route tree
 const routeTree = rootRoute.addChildren([
   indexRoute,
@@ -179,6 +186,7 @@ const routeTree = rootRoute.addChildren([
   settingsRoute,
   billingRoute,
   teamRoute,
+  partnerRoute,
 ]);
 
 // Create router

@@ -562,7 +562,7 @@
         "Respect user notification preferences"
       ],
       "priority": 37,
-      "passes": false,
+      "passes": true,
       "notes": "Email template with cost highlights"
     },
     {
@@ -733,5 +733,5 @@
     }
   ],
   "createdAt": "2025-01-25T06:43:19.629Z",
-  "updatedAt": "2026-01-25T11:10:25.986Z"
+  "updatedAt": "2026-01-25T11:16:07.219Z"
 }

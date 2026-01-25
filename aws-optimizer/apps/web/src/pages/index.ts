@@ -14,3 +14,4 @@ export { ReportsPage } from "./ReportsPage";
 export { BillingPage } from "./BillingPage";
 export { TeamPage } from "./TeamPage";
 export { SettingsPage } from "./SettingsPage";
+export { PartnerPage } from "./PartnerPage";
