@@ -1,6 +1,6 @@
 import { createRouter, createRootRoute, createRoute, Outlet } from "@tanstack/react-router";
 import { AppLayout } from "./components/AppShell";
-import { LoginPage, SignupPage, ForgotPasswordPage, ChatPage, AccountsPage, DashboardPage, CostExplorerPage, ResourcesPage } from "./pages";
+import { LoginPage, SignupPage, ForgotPasswordPage, ChatPage, AccountsPage, DashboardPage, CostExplorerPage, ResourcesPage, RecommendationsPage } from "./pages";
 import { Title, Text, Container, Stack } from "@mantine/core";
 
 // Placeholder page component factory
@@ -101,10 +101,7 @@ const resourcesRoute = createRoute({
 const recommendationsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/recommendations",
-  component: createPlaceholderPage(
-    "Recommendations",
-    "AI-powered cost optimization recommendations"
-  ),
+  component: RecommendationsPage,
 });
 
 // Terminal route
