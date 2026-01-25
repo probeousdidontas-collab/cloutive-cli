@@ -17,6 +17,7 @@ import { awsCostAgent } from "./awsCostAgent";
 import { requireAuth, requireAuthAction } from "../functions";
 import { listMessages, saveMessage } from "@convex-dev/agent";
 import { paginationOptsValidator } from "convex/server";
+import { checkRateLimit } from "../rateLimit";
 
 /**
  * Send a message to the AI assistant.
@@ -29,6 +30,9 @@ export const sendMessage = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await requireAuth(ctx);
+
+    // Apply rate limiting: 20 messages per minute per user
+    await checkRateLimit(ctx, "aiChat", userId);
 
     const thread = await ctx.runQuery(components.agent.threads.getThread, {
       threadId: args.threadId as never,

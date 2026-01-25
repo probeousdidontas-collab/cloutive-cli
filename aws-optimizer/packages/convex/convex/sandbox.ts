@@ -12,18 +12,8 @@
 import { v } from "convex/values";
 import { action, internalAction, internalMutation, internalQuery } from "./_generated/server";
 import { internal, components } from "./_generated/api";
-import { RateLimiter } from "@convex-dev/rate-limiter";
 import { ActionRetrier } from "@convex-dev/action-retrier";
-
-// Initialize rate limiter with component
-const rateLimiter = new RateLimiter(components.rateLimiter, {
-  // Allow 10 commands per minute per AWS account
-  sandboxExecution: {
-    kind: "fixed window",
-    rate: 10,
-    period: 60 * 1000, // 1 minute
-  },
-});
+import { rateLimiter, logRateLimitEvent } from "./rateLimit";
 
 // Initialize action retrier with component
 const actionRetrier = new ActionRetrier(components.actionRetrier, {
@@ -197,13 +187,20 @@ export const executeCommand = action({
       throw new Error("AWS credentials are incomplete");
     }
 
-    // Apply rate limiting
+    // Apply rate limiting (10 commands per minute per org)
     const rateLimitResult = await rateLimiter.limit(ctx, "sandboxExecution", {
       key: awsAccountId,
-      throws: true,
+      throws: false,
     });
 
     if (!rateLimitResult.ok) {
+      // Log rate limit event for monitoring
+      logRateLimitEvent({
+        type: "sandboxExecution",
+        key: awsAccountId,
+        retryAfter: rateLimitResult.retryAfter,
+      });
+
       throw new Error(
         `Rate limit exceeded. Try again in ${Math.ceil(rateLimitResult.retryAfter / 1000)} seconds`
       );
