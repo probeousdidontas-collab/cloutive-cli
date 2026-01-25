@@ -63,13 +63,8 @@ const mockClientOrganizations = [
 const mockCreateClientOrg = vi.fn();
 const mockGenerateAggregateReport = vi.fn();
 
-let queryCallIndex = 0;
-
 vi.mock("convex/react", () => ({
-  useQuery: vi.fn(() => {
-    queryCallIndex++;
-    return mockClientOrganizations;
-  }),
+  useQuery: vi.fn(() => mockClientOrganizations),
   useMutation: vi.fn((mutationName) => {
     if (mutationName?.includes?.("generateAggregateReport")) return mockGenerateAggregateReport;
     return mockCreateClientOrg;
@@ -96,7 +91,6 @@ function renderWithProviders(ui: React.ReactElement) {
 
 describe("US-038: Partner Dashboard - Organization List", () => {
   beforeEach(() => {
-    queryCallIndex = 0;
     mockNavigate.mockClear();
     mockCreateClientOrg.mockClear();
     mockGenerateAggregateReport.mockClear();
@@ -322,7 +316,6 @@ describe("PartnerPage Route Integration", () => {
 
 describe("US-039: Partner - Client Organization Creation", () => {
   beforeEach(() => {
-    queryCallIndex = 0;
     mockNavigate.mockClear();
     mockCreateClientOrg.mockClear();
     mockGenerateAggregateReport.mockClear();
@@ -454,7 +447,6 @@ describe("US-039: Partner - Client Organization Creation", () => {
 
 describe("US-040: Partner - Aggregate Reporting", () => {
   beforeEach(() => {
-    queryCallIndex = 0;
     mockNavigate.mockClear();
     mockCreateClientOrg.mockClear();
     mockGenerateAggregateReport.mockClear();

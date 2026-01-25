@@ -213,13 +213,13 @@ export function ActivityPage() {
     if (!logsResult?.logs) return [];
     const start = (page - 1) * ITEMS_PER_PAGE;
     return logsResult.logs.slice(start, start + ITEMS_PER_PAGE);
-  }, [logsResult?.logs, page]);
+  }, [logsResult, page]);
 
   // Total pages
   const totalPages = useMemo(() => {
     if (!logsResult?.logs) return 1;
     return Math.ceil(logsResult.logs.length / ITEMS_PER_PAGE);
-  }, [logsResult?.logs]);
+  }, [logsResult]);
 
   // Handle filter reset
   const handleResetFilters = useCallback(() => {
