@@ -457,7 +457,7 @@
         "Show unacknowledged alert count in navigation"
       ],
       "priority": 30,
-      "passes": false,
+      "passes": true,
       "notes": "AI agent and budget system trigger alerts"
     },
     {
@@ -733,5 +733,5 @@
     }
   ],
   "createdAt": "2025-01-25T06:43:19.629Z",
-  "updatedAt": "2026-01-25T10:24:16.380Z"
+  "updatedAt": "2026-01-25T10:30:00.529Z"
 }
