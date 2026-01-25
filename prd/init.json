@@ -442,7 +442,7 @@
         "Support per-account or organization-wide budgets"
       ],
       "priority": 29,
-      "passes": false,
+      "passes": true,
       "notes": "Triggers alerts when thresholds exceeded"
     },
     {
@@ -733,5 +733,5 @@
     }
   ],
   "createdAt": "2025-01-25T06:43:19.629Z",
-  "updatedAt": "2026-01-25T10:18:59.262Z"
+  "updatedAt": "2026-01-25T10:24:16.380Z"
 }

@@ -11,6 +11,7 @@ import {
   UnstyledButton,
   Divider,
   Stack,
+  Badge,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { Outlet, useLocation, useNavigate } from "@tanstack/react-router";
@@ -20,13 +21,25 @@ import {
   IconLogout,
   IconChevronDown,
 } from "@tabler/icons-react";
+import { useQuery } from "convex/react";
 import { NAV_ITEMS } from "./nav-items";
+
+// API placeholder - in production, import from Convex generated API
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const api: any = {
+  alerts: {
+    getUnacknowledgedCount: "api.alerts.getUnacknowledgedCount",
+  },
+};
 
 export function AppLayout() {
   const [opened, { toggle }] = useDisclosure();
   const location = useLocation();
   const navigate = useNavigate();
   const { data: session, isPending } = useSession();
+  
+  // Fetch unacknowledged alert count for navigation badge
+  const unacknowledgedCount = useQuery(api.alerts.getUnacknowledgedCount) as number | undefined;
 
   const user = session?.user;
   const userName = user?.name || "User";
@@ -130,7 +143,23 @@ export function AppLayout() {
             {NAV_ITEMS.slice(6, 10).map((item) => (
               <NavLink
                 key={item.path}
-                label={item.label}
+                label={
+                  item.path === "/alerts" && unacknowledgedCount && unacknowledgedCount > 0 ? (
+                    <Group gap="xs" justify="space-between" style={{ flex: 1 }}>
+                      <span>{item.label}</span>
+                      <Badge
+                        data-testid="nav-alerts-badge"
+                        size="sm"
+                        variant="filled"
+                        color="red"
+                      >
+                        {unacknowledgedCount}
+                      </Badge>
+                    </Group>
+                  ) : (
+                    item.label
+                  )
+                }
                 leftSection={item.icon}
                 active={location.pathname === item.path}
                 onClick={() => {

@@ -9,3 +9,4 @@ export { ResourcesPage } from "./ResourcesPage";
 export { RecommendationsPage } from "./RecommendationsPage";
 export { TerminalPage } from "./TerminalPage";
 export { BudgetsPage } from "./BudgetsPage";
+export { AlertsPage } from "./AlertsPage";

@@ -1,6 +1,6 @@
 import { createRouter, createRootRoute, createRoute, Outlet } from "@tanstack/react-router";
 import { AppLayout } from "./components/AppShell";
-import { LoginPage, SignupPage, ForgotPasswordPage, ChatPage, AccountsPage, DashboardPage, CostExplorerPage, ResourcesPage, RecommendationsPage, TerminalPage, BudgetsPage } from "./pages";
+import { LoginPage, SignupPage, ForgotPasswordPage, ChatPage, AccountsPage, DashboardPage, CostExplorerPage, ResourcesPage, RecommendationsPage, TerminalPage, BudgetsPage, AlertsPage } from "./pages";
 import { Title, Text, Container, Stack } from "@mantine/core";
 
 // Placeholder page component factory
@@ -122,10 +122,7 @@ const budgetsRoute = createRoute({
 const alertsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/alerts",
-  component: createPlaceholderPage(
-    "Alerts",
-    "Cost alerts and notifications"
-  ),
+  component: AlertsPage,
 });
 
 // Reports route
