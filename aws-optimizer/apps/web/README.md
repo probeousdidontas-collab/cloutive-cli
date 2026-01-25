@@ -1,73 +1,164 @@
-# React + TypeScript + Vite
+# AWS Optimizer Web Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React single-page application for the AWS Cost Optimizer platform.
 
-Currently, two official plugins are available:
+## Tech Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **React 19** - UI framework
+- **Mantine v8** - Component library
+- **TanStack Router** - Type-safe routing
+- **MobX** - State management
+- **Convex** - Real-time backend sync
+- **Recharts** - Data visualization
+- **TypeScript** - Type safety
 
-## React Compiler
+## Project Structure
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```
+src/
+├── components/          # Reusable UI components
+│   ├── layout/          # Layout components (sidebar, header)
+│   ├── charts/          # Chart components
+│   └── common/          # Shared components
+├── pages/               # Page components
+│   ├── DashboardPage.tsx
+│   ├── AwsAccountsPage.tsx
+│   ├── AnalysisPage.tsx
+│   └── ...
+├── stores/              # MobX stores
+│   ├── AuthStore.ts
+│   ├── OrganizationStore.ts
+│   └── ...
+├── lib/                 # Utilities and helpers
+├── routes/              # TanStack Router configuration
+├── App.tsx              # Root component
+├── main.tsx             # Entry point
+└── worker.ts            # Cloudflare Worker (production proxy)
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Development
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### Prerequisites
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+- Node.js 20+
+- Running Convex backend (see `packages/convex`)
+
+### Setup
+
+```bash
+# Install dependencies (from monorepo root)
+npm install
+
+# Create environment file
+cp .env.example .env.local
+
+# Edit .env.local with your Convex URL
+# VITE_CONVEX_URL=https://your-deployment.convex.cloud
 ```
+
+### Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `VITE_CONVEX_URL` | Yes | Convex deployment URL |
+
+### Running Locally
+
+```bash
+# Start development server
+npm run dev
+
+# The app will be available at http://localhost:5173
+```
+
+### Testing
+
+```bash
+# Run tests
+npm test
+
+# Watch mode
+npm run test:watch
+
+# Run with coverage
+npm run test -- --coverage
+```
+
+### Type Checking
+
+```bash
+npm run typecheck
+```
+
+### Linting
+
+```bash
+npm run lint
+```
+
+## Building
+
+```bash
+# Build for production
+npm run build
+
+# Preview production build
+npm run preview
+```
+
+## Deployment
+
+The frontend is deployed to Cloudflare Pages using a Worker for routing.
+
+```bash
+# Deploy to staging
+npm run deploy:staging
+
+# Deploy to production
+npm run deploy:production
+```
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed deployment instructions.
+
+## Architecture Notes
+
+### Cloudflare Worker
+
+In production, a Cloudflare Worker (`src/worker.ts`) handles:
+
+1. **Static Assets** - Serves the built SPA from `/dist`
+2. **Convex Proxy** - Routes `/convex/*` to Convex cloud
+3. **Auth Proxy** - Routes `/api/auth/*` to Convex for Better Auth
+4. **SPA Routing** - Returns `index.html` for client-side routes
+
+### State Management
+
+MobX stores sync with Convex using the `useConvexSync` hook:
+
+```tsx
+// Store automatically syncs with Convex queries
+const organizations = useQuery(api.organizations.list);
+useConvexSync(organizationStore, organizations);
+```
+
+### Authentication
+
+Better Auth is used for authentication:
+
+- Email/password registration and login
+- Password reset via email
+- Session management with JWT tokens
+
+## Scripts Reference
+
+| Script | Description |
+|--------|-------------|
+| `npm run dev` | Start development server |
+| `npm run build` | Build for production |
+| `npm run preview` | Preview production build |
+| `npm run typecheck` | Run TypeScript type checking |
+| `npm run lint` | Run ESLint |
+| `npm run test` | Run tests |
+| `npm run test:watch` | Run tests in watch mode |
+| `npm run deploy:staging` | Deploy to staging |
+| `npm run deploy:production` | Deploy to production |
