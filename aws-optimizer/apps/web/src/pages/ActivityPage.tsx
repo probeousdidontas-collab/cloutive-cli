@@ -201,7 +201,7 @@ export function ActivityPage() {
 
   // User options for dropdown
   const userOptions = useMemo(() => {
-    if (!users) return [];
+    if (!users || !Array.isArray(users)) return [];
     return users.map((user) => ({
       value: user._id,
       label: user.name,
