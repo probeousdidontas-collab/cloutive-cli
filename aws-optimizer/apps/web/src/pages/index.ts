@@ -16,3 +16,4 @@ export { TeamPage } from "./TeamPage";
 export { SettingsPage } from "./SettingsPage";
 export { PartnerPage } from "./PartnerPage";
 export { LandingPage } from "./LandingPage";
+export { ActivityPage } from "./ActivityPage";

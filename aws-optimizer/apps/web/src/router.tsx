@@ -1,5 +1,5 @@
 import { createRouter, createRootRoute, createRoute, Outlet } from "@tanstack/react-router";
-import { LoginPage, SignupPage, ForgotPasswordPage, ChatPage, AccountsPage, DashboardPage, CostExplorerPage, ResourcesPage, RecommendationsPage, TerminalPage, BudgetsPage, AlertsPage, ReportsPage, BillingPage, TeamPage, SettingsPage, PartnerPage, LandingPage } from "./pages";
+import { LoginPage, SignupPage, ForgotPasswordPage, ChatPage, AccountsPage, DashboardPage, CostExplorerPage, ResourcesPage, RecommendationsPage, TerminalPage, BudgetsPage, AlertsPage, ReportsPage, BillingPage, TeamPage, SettingsPage, PartnerPage, LandingPage, ActivityPage } from "./pages";
 
 // Root route - just renders Outlet, no layout
 const rootRoute = createRootRoute({
@@ -118,6 +118,13 @@ const settingsRoute = createRoute({
   component: SettingsPage,
 });
 
+// Activity route (settings/activity)
+const activityRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings/activity",
+  component: ActivityPage,
+});
+
 // Billing route
 const billingRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -156,6 +163,7 @@ const routeTree = rootRoute.addChildren([
   reportsRoute,
   accountsRoute,
   settingsRoute,
+  activityRoute,
   billingRoute,
   teamRoute,
   partnerRoute,
