@@ -382,7 +382,7 @@
         "Allow CSV export of filtered data"
       ],
       "priority": 25,
-      "passes": false,
+      "passes": true,
       "notes": "Detailed drill-down capability"
     },
     {
@@ -733,5 +733,5 @@
     }
   ],
   "createdAt": "2025-01-25T06:43:19.629Z",
-  "updatedAt": "2026-01-25T09:54:35.248Z"
+  "updatedAt": "2026-01-25T10:01:50.284Z"
 }

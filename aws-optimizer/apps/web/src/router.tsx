@@ -1,6 +1,6 @@
 import { createRouter, createRootRoute, createRoute, Outlet } from "@tanstack/react-router";
 import { AppLayout } from "./components/AppShell";
-import { LoginPage, SignupPage, ForgotPasswordPage, ChatPage, AccountsPage, DashboardPage, CostExplorerPage } from "./pages";
+import { LoginPage, SignupPage, ForgotPasswordPage, ChatPage, AccountsPage, DashboardPage, CostExplorerPage, ResourcesPage } from "./pages";
 import { Title, Text, Container, Stack } from "@mantine/core";
 
 // Placeholder page component factory
@@ -94,10 +94,7 @@ const costsRoute = createRoute({
 const resourcesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/resources",
-  component: createPlaceholderPage(
-    "Resources",
-    "AWS resource inventory and management"
-  ),
+  component: ResourcesPage,
 });
 
 // Recommendations route

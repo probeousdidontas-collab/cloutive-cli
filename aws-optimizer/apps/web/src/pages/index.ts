@@ -5,3 +5,4 @@ export { ChatPage } from "./ChatPage";
 export { AccountsPage } from "./AccountsPage";
 export { DashboardPage } from "./DashboardPage";
 export { CostExplorerPage } from "./CostExplorerPage";
+export { ResourcesPage } from "./ResourcesPage";
