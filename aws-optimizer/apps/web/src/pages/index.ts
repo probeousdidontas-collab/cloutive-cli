@@ -11,3 +11,4 @@ export { TerminalPage } from "./TerminalPage";
 export { BudgetsPage } from "./BudgetsPage";
 export { AlertsPage } from "./AlertsPage";
 export { ReportsPage } from "./ReportsPage";
+export { BillingPage } from "./BillingPage";
