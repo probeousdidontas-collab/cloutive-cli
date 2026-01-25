@@ -4,3 +4,4 @@ export { ForgotPasswordPage } from "./ForgotPasswordPage";
 export { ChatPage } from "./ChatPage";
 export { AccountsPage } from "./AccountsPage";
 export { DashboardPage } from "./DashboardPage";
+export { CostExplorerPage } from "./CostExplorerPage";

@@ -367,7 +367,7 @@
         "Support multi-account aggregation"
       ],
       "priority": 24,
-      "passes": false,
+      "passes": true,
       "notes": "Uses data populated by AI agent"
     },
     {
@@ -733,5 +733,5 @@
     }
   ],
   "createdAt": "2025-01-25T06:43:19.629Z",
-  "updatedAt": "2026-01-25T09:45:51.401Z"
+  "updatedAt": "2026-01-25T09:54:35.248Z"
 }
