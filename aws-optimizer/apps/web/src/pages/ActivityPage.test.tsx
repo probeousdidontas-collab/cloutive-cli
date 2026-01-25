@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { MantineProvider } from "@mantine/core";
 import { ConvexProvider, ConvexReactClient } from "convex/react";
 import { ActivityPage } from "./ActivityPage";
@@ -79,10 +79,7 @@ const mockLogs = {
   hasMore: false,
 };
 
-const mockUsers = [
-  { _id: "user1", name: "John Doe", email: "john@example.com" },
-  { _id: "user2", name: "Jane Smith", email: "jane@example.com" },
-];
+// Users are included in mockLogs.logs[].user
 
 const renderWithProviders = (component: React.ReactNode) => {
   const client = new ConvexReactClient("https://test.convex.cloud");
@@ -99,11 +96,7 @@ describe("ActivityPage", () => {
   });
 
   it("renders the activity page with title", () => {
-    mockUseQuery.mockImplementation((query) => {
-      if (query === "api.activityLogs.list") return mockLogs;
-      if (query === "api.activityLogs.getUsers") return mockUsers;
-      return undefined;
-    });
+    mockUseQuery.mockImplementation(() => mockLogs);
 
     renderWithProviders(<ActivityPage />);
 
@@ -112,11 +105,7 @@ describe("ActivityPage", () => {
   });
 
   it("renders activity logs in a table", () => {
-    mockUseQuery.mockImplementation((query) => {
-      if (query === "api.activityLogs.list") return mockLogs;
-      if (query === "api.activityLogs.getUsers") return mockUsers;
-      return undefined;
-    });
+    mockUseQuery.mockImplementation(() => mockLogs);
 
     renderWithProviders(<ActivityPage />);
 
@@ -138,11 +127,7 @@ describe("ActivityPage", () => {
   });
 
   it("shows empty state when no logs exist", () => {
-    mockUseQuery.mockImplementation((query) => {
-      if (query === "api.activityLogs.list") return { logs: [], hasMore: false };
-      if (query === "api.activityLogs.getUsers") return [];
-      return undefined;
-    });
+    mockUseQuery.mockImplementation(() => ({ logs: [], hasMore: false }));
 
     renderWithProviders(<ActivityPage />);
 
@@ -150,11 +135,7 @@ describe("ActivityPage", () => {
   });
 
   it("renders filter controls", () => {
-    mockUseQuery.mockImplementation((query) => {
-      if (query === "api.activityLogs.list") return mockLogs;
-      if (query === "api.activityLogs.getUsers") return mockUsers;
-      return undefined;
-    });
+    mockUseQuery.mockImplementation(() => mockLogs);
 
     renderWithProviders(<ActivityPage />);
 
@@ -166,11 +147,7 @@ describe("ActivityPage", () => {
   });
 
   it("renders reset filters button", () => {
-    mockUseQuery.mockImplementation((query) => {
-      if (query === "api.activityLogs.list") return mockLogs;
-      if (query === "api.activityLogs.getUsers") return mockUsers;
-      return undefined;
-    });
+    mockUseQuery.mockImplementation(() => mockLogs);
 
     renderWithProviders(<ActivityPage />);
 
@@ -178,11 +155,7 @@ describe("ActivityPage", () => {
   });
 
   it("displays retention notice", () => {
-    mockUseQuery.mockImplementation((query) => {
-      if (query === "api.activityLogs.list") return mockLogs;
-      if (query === "api.activityLogs.getUsers") return mockUsers;
-      return undefined;
-    });
+    mockUseQuery.mockImplementation(() => mockLogs);
 
     renderWithProviders(<ActivityPage />);
 
@@ -190,11 +163,7 @@ describe("ActivityPage", () => {
   });
 
   it("displays details when available", () => {
-    mockUseQuery.mockImplementation((query) => {
-      if (query === "api.activityLogs.list") return mockLogs;
-      if (query === "api.activityLogs.getUsers") return mockUsers;
-      return undefined;
-    });
+    mockUseQuery.mockImplementation(() => mockLogs);
 
     renderWithProviders(<ActivityPage />);
 
@@ -202,11 +171,7 @@ describe("ActivityPage", () => {
   });
 
   it("formats entity types correctly", () => {
-    mockUseQuery.mockImplementation((query) => {
-      if (query === "api.activityLogs.list") return mockLogs;
-      if (query === "api.activityLogs.getUsers") return mockUsers;
-      return undefined;
-    });
+    mockUseQuery.mockImplementation(() => mockLogs);
 
     renderWithProviders(<ActivityPage />);
 

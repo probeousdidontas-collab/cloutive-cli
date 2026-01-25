@@ -302,7 +302,7 @@ export function ActivityPage() {
               placeholder="Select date range"
               value={dateRange}
               onChange={(value) => {
-                setDateRange(value);
+                setDateRange(value as [Date | null, Date | null]);
                 setPage(1);
               }}
               clearable
