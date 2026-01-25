@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useState } from "react";
 import {
   Container,
   Paper,
@@ -13,7 +13,10 @@ import {
   ThemeIcon,
   Skeleton,
   Divider,
+  Modal,
+  TextInput,
 } from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
 import {
   IconBuilding,
   IconCloud,
@@ -22,8 +25,9 @@ import {
   IconUsers,
   IconArrowRight,
   IconBriefcase,
+  IconPlus,
 } from "@tabler/icons-react";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { useNavigate } from "@tanstack/react-router";
 
 // API placeholder - in production, import from Convex generated API
@@ -31,6 +35,7 @@ import { useNavigate } from "@tanstack/react-router";
 const api: any = {
   partner: {
     listClientOrganizations: "api.partner.listClientOrganizations",
+    createClientOrganization: "api.partner.createClientOrganization",
   },
 };
 
@@ -73,8 +78,32 @@ function capitalizeFirst(str: string): string {
 export function PartnerPage() {
   const navigate = useNavigate();
 
+  // Modal state
+  const [modalOpened, { open: openModal, close: closeModal }] = useDisclosure(false);
+  const [orgName, setOrgName] = useState("");
+  const [clientEmail, setClientEmail] = useState("");
+
   // Fetch client organizations
   const clientOrganizations = useQuery(api.partner.listClientOrganizations) as ClientOrganization[] | undefined;
+
+  // Mutation for creating client org
+  const createClientOrg = useMutation(api.partner.createClientOrganization);
+
+  // Reset form
+  const resetForm = useCallback(() => {
+    setOrgName("");
+    setClientEmail("");
+  }, []);
+
+  // Handle create client org
+  const handleCreateClientOrg = useCallback(async () => {
+    await createClientOrg({
+      organizationName: orgName,
+      clientEmail: clientEmail,
+    });
+    closeModal();
+    resetForm();
+  }, [orgName, clientEmail, createClientOrg, closeModal, resetForm]);
 
   // Calculate aggregate stats
   const aggregateStats = useMemo(() => {
@@ -131,6 +160,12 @@ export function PartnerPage() {
               Manage all your client organizations from one place
             </Text>
           </Stack>
+          <Button
+            leftSection={<IconPlus size={16} />}
+            onClick={openModal}
+          >
+            Create Client Org
+          </Button>
         </Group>
 
         {/* Aggregate Stats */}
@@ -338,6 +373,58 @@ export function PartnerPage() {
           </Stack>
         </Paper>
       </Stack>
+
+      {/* Create Client Org Modal */}
+      <Modal
+        opened={modalOpened}
+        onClose={() => {
+          closeModal();
+          resetForm();
+        }}
+        title="Create Client Organization"
+        size="md"
+        data-testid="create-client-org-modal"
+      >
+        <Stack gap="md">
+          <TextInput
+            label="Organization Name"
+            placeholder="Acme Corp"
+            value={orgName}
+            onChange={(e) => setOrgName(e.target.value)}
+            required
+          />
+
+          <TextInput
+            label="Primary Contact Email"
+            placeholder="client@example.com"
+            description="An invitation will be sent to this email. They will become the organization owner."
+            value={clientEmail}
+            onChange={(e) => setClientEmail(e.target.value)}
+            type="email"
+            required
+          />
+
+          <Divider />
+
+          <Group justify="flex-end" gap="sm">
+            <Button
+              variant="subtle"
+              onClick={() => {
+                closeModal();
+                resetForm();
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateClientOrg}
+              disabled={!orgName.trim() || !clientEmail.trim()}
+            >
+              Create
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Container>
   );
 }

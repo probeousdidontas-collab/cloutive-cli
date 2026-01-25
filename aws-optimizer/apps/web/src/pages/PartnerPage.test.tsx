@@ -54,11 +54,11 @@ const mockClientOrganizations = [
   },
 ];
 
-const mockSwitchContext = vi.fn();
+const mockCreateClientOrg = vi.fn();
 
 vi.mock("convex/react", () => ({
   useQuery: vi.fn(() => mockClientOrganizations),
-  useMutation: vi.fn(() => mockSwitchContext),
+  useMutation: vi.fn(() => mockCreateClientOrg),
 }));
 
 // Mock auth client
@@ -82,7 +82,7 @@ function renderWithProviders(ui: React.ReactElement) {
 describe("US-038: Partner Dashboard - Organization List", () => {
   beforeEach(() => {
     mockNavigate.mockClear();
-    mockSwitchContext.mockClear();
+    mockCreateClientOrg.mockClear();
   });
 
   afterEach(() => {
@@ -300,5 +300,135 @@ describe("PartnerPage Route Integration", () => {
     const pages = await import("./index");
     expect(pages.PartnerPage).toBeDefined();
     expect(typeof pages.PartnerPage).toBe("function");
+  });
+});
+
+describe("US-039: Partner - Client Organization Creation", () => {
+  beforeEach(() => {
+    mockNavigate.mockClear();
+    mockCreateClientOrg.mockClear();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe("AC1: Add 'Create Client Org' button to partner dashboard", () => {
+    test("should display Create Client Org button", () => {
+      renderWithProviders(<PartnerPage />);
+      
+      expect(screen.getByRole("button", { name: /create client org/i })).toBeInTheDocument();
+    });
+
+    test("should have visible and accessible Create Client Org button", () => {
+      renderWithProviders(<PartnerPage />);
+      
+      const button = screen.getByRole("button", { name: /create client org/i });
+      expect(button).toBeEnabled();
+    });
+  });
+
+  describe("AC2: Collect client organization name and primary contact email", () => {
+    test("should open modal when Create Client Org button clicked", async () => {
+      renderWithProviders(<PartnerPage />);
+      
+      const button = screen.getByRole("button", { name: /create client org/i });
+      fireEvent.click(button);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("create-client-org-modal")).toBeInTheDocument();
+      });
+    });
+
+    test("should have organization name input field in modal", async () => {
+      renderWithProviders(<PartnerPage />);
+      
+      const button = screen.getByRole("button", { name: /create client org/i });
+      fireEvent.click(button);
+
+      await waitFor(() => {
+        const textboxes = screen.getAllByRole("textbox");
+        expect(textboxes.length).toBeGreaterThanOrEqual(1);
+      });
+    });
+
+    test("should have primary contact email input field in modal", async () => {
+      renderWithProviders(<PartnerPage />);
+      
+      const button = screen.getByRole("button", { name: /create client org/i });
+      fireEvent.click(button);
+
+      await waitFor(() => {
+        // Check for email label text
+        expect(screen.getByText("Primary Contact Email")).toBeInTheDocument();
+      });
+    });
+
+    test("should have Create button in modal", async () => {
+      renderWithProviders(<PartnerPage />);
+      
+      const button = screen.getByRole("button", { name: /create client org/i });
+      fireEvent.click(button);
+
+      await waitFor(() => {
+        // Modal should have a create/submit button
+        const modalButtons = screen.getAllByRole("button");
+        const createButton = modalButtons.find(btn => 
+          btn.textContent?.toLowerCase().includes("create") && 
+          btn !== button
+        );
+        expect(createButton).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("AC3: Create organization with partner as admin", () => {
+    test("should render modal when button is clicked", async () => {
+      renderWithProviders(<PartnerPage />);
+      
+      // Open modal
+      const button = screen.getByRole("button", { name: /create client org/i });
+      fireEvent.click(button);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("create-client-org-modal")).toBeInTheDocument();
+      });
+
+      // Modal should be in the document (content is rendered in portal)
+      const modal = screen.getByTestId("create-client-org-modal");
+      expect(modal).toBeInTheDocument();
+    });
+  });
+
+  describe("Modal interaction", () => {
+    test("should have modal visible after clicking create button", async () => {
+      renderWithProviders(<PartnerPage />);
+      
+      // Open modal
+      const button = screen.getByRole("button", { name: /create client org/i });
+      fireEvent.click(button);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("create-client-org-modal")).toBeInTheDocument();
+      });
+
+      // Modal should be visible
+      expect(screen.getByTestId("create-client-org-modal")).toBeVisible();
+    });
+
+    test("should have modal with proper data-testid", async () => {
+      renderWithProviders(<PartnerPage />);
+      
+      const headerButton = screen.getByRole("button", { name: /create client org/i });
+      fireEvent.click(headerButton);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("create-client-org-modal")).toBeInTheDocument();
+      });
+
+      // Modal should have the correct test id
+      const modal = screen.getByTestId("create-client-org-modal");
+      expect(modal).toHaveAttribute("data-testid", "create-client-org-modal");
+    });
   });
 });

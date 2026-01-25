@@ -1,6 +1,9 @@
 import { convexTest } from "convex-test";
 import type { Id } from "./_generated/dataModel";
 
+// Re-export Id type for use in tests
+export type { Id };
+
 // ============================================================================
 // AWS Integration Types
 // ============================================================================
@@ -212,6 +215,70 @@ export async function createOrganizationWithOwner(
   });
 
   return { organization, owner, membership };
+}
+
+// ============================================================================
+// INVITATION HELPERS
+// ============================================================================
+
+// Invitation status types
+export type InvitationStatus = "pending" | "accepted" | "expired" | "cancelled";
+
+// Mock invitation data structure
+export interface MockOrgInvitation {
+  _id: Id<"orgInvitations">;
+  organizationId: Id<"organizations">;
+  email: string;
+  role: OrgMemberRole;
+  status: InvitationStatus;
+  invitedBy: Id<"users">;
+  acceptedAt?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+// Options for creating a mock invitation
+export interface CreateMockOrgInvitationOptions {
+  organizationId: Id<"organizations">;
+  email: string;
+  role?: OrgMemberRole;
+  status?: InvitationStatus;
+  invitedBy: Id<"users">;
+}
+
+/**
+ * Create a mock organization invitation in the test database.
+ */
+export async function createMockOrgInvitation(
+  t: ReturnType<typeof convexTest>,
+  options: CreateMockOrgInvitationOptions
+): Promise<MockOrgInvitation> {
+  const now = Date.now();
+  const role = options.role ?? "member";
+  const status = options.status ?? "pending";
+
+  const invitationId = await t.run(async (ctx) => {
+    return await ctx.db.insert("orgInvitations", {
+      organizationId: options.organizationId,
+      email: options.email,
+      role,
+      status,
+      invitedBy: options.invitedBy,
+      createdAt: now,
+      updatedAt: now,
+    });
+  });
+
+  return {
+    _id: invitationId as Id<"orgInvitations">,
+    organizationId: options.organizationId,
+    email: options.email,
+    role,
+    status,
+    invitedBy: options.invitedBy,
+    createdAt: now,
+    updatedAt: now,
+  };
 }
 
 // ============================================================================
@@ -439,7 +506,7 @@ export type ReportStatus = "pending" | "generating" | "completed" | "failed";
 export type ActivityAction = "create" | "update" | "delete";
 
 // Activity log entity types
-export type ActivityEntityType = "organization" | "aws_account" | "budget" | "report";
+export type ActivityEntityType = "organization" | "aws_account" | "budget" | "report" | "invitation";
 
 // Mock analysis run data structure
 export interface MockAnalysisRun {

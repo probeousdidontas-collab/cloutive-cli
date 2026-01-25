@@ -112,7 +112,8 @@ const activityEntityValidator = v.union(
   v.literal("organization"),
   v.literal("aws_account"),
   v.literal("budget"),
-  v.literal("report")
+  v.literal("report"),
+  v.literal("invitation")
 );
 
 export default defineSchema({
@@ -149,6 +150,39 @@ export default defineSchema({
   })
     .index("by_slug", ["slug"])
     .index("by_plan", ["plan"]),
+
+  // ============================================================================
+  // ORGANIZATION INVITATIONS
+  // ============================================================================
+  // Pending invitations to join an organization.
+  // Used for partner-created client organizations where client becomes owner.
+  orgInvitations: defineTable({
+    // Organization reference
+    organizationId: v.id("organizations"),
+
+    // Invitee details
+    email: v.string(), // Email of the invited user
+    role: orgMemberRoleValidator, // Role they will have when accepting
+
+    // Invitation status
+    status: v.union(
+      v.literal("pending"),
+      v.literal("accepted"),
+      v.literal("expired"),
+      v.literal("cancelled")
+    ),
+
+    // Who sent the invitation
+    invitedBy: v.id("users"),
+
+    // Timestamps
+    acceptedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_organization", ["organizationId"])
+    .index("by_email", ["email"])
+    .index("by_status", ["status"]),
 
   // ============================================================================
   // ORGANIZATION MEMBERS
