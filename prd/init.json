@@ -607,7 +607,7 @@
         "Maintain client data isolation in reports"
       ],
       "priority": 40,
-      "passes": false,
+      "passes": true,
       "notes": "Aggregate view without exposing individual client data"
     },
     {
@@ -733,5 +733,5 @@
     }
   ],
   "createdAt": "2025-01-25T06:43:19.629Z",
-  "updatedAt": "2026-01-25T11:30:16.342Z"
+  "updatedAt": "2026-01-25T11:38:13.387Z"
 }

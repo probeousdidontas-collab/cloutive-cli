@@ -1,51 +1,24 @@
 import { createRouter, createRootRoute, createRoute, Outlet } from "@tanstack/react-router";
 import { AppLayout } from "./components/AppShell";
-import { LoginPage, SignupPage, ForgotPasswordPage, ChatPage, AccountsPage, DashboardPage, CostExplorerPage, ResourcesPage, RecommendationsPage, TerminalPage, BudgetsPage, AlertsPage, ReportsPage, BillingPage, TeamPage, SettingsPage, PartnerPage } from "./pages";
-import { Title, Text, Container, Stack } from "@mantine/core";
-
-// Placeholder page component factory
-function createPlaceholderPage(title: string, description: string) {
-  const PlaceholderPage = () => (
-    <Container size="lg" py="xl">
-      <Stack align="center" gap="md">
-        <Title order={1}>{title}</Title>
-        <Text c="dimmed" size="lg" ta="center">
-          {description}
-        </Text>
-      </Stack>
-    </Container>
-  );
-  PlaceholderPage.displayName = `${title.replace(/\s+/g, "")}Page`;
-  return PlaceholderPage;
-}
+import { LoginPage, SignupPage, ForgotPasswordPage, ChatPage, AccountsPage, DashboardPage, CostExplorerPage, ResourcesPage, RecommendationsPage, TerminalPage, BudgetsPage, AlertsPage, ReportsPage, BillingPage, TeamPage, SettingsPage, PartnerPage, LandingPage } from "./pages";
 
 // Root route - just renders Outlet, no layout
 const rootRoute = createRootRoute({
   component: () => <Outlet />,
 });
 
-// Auth layout route (no sidebar) - for login, signup, forgot-password
+// Auth layout route (no sidebar) - for login, signup, forgot-password, landing
 const authLayoutRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: "auth",
   component: () => <Outlet />,
 });
 
-// App layout route (with sidebar) - for authenticated pages
-const appLayoutRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  id: "app",
-  component: AppLayout,
-});
-
-// Index route - redirects to chat
+// Index route - landing page (public, no auth required)
 const indexRoute = createRoute({
-  getParentRoute: () => appLayoutRoute,
+  getParentRoute: () => authLayoutRoute,
   path: "/",
-  component: createPlaceholderPage(
-    "Welcome to AWS Cost Optimizer",
-    "AI-first AWS cost analysis and optimization platform"
-  ),
+  component: LandingPage,
 });
 
 // Login route (under auth layout - no sidebar)
