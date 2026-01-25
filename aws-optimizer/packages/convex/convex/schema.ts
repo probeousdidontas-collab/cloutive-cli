@@ -136,6 +136,11 @@ export default defineSchema({
       customDomain: v.optional(v.string()),
       defaultRegion: v.optional(v.string()),
       features: v.optional(v.object({})),
+      // Notification preferences for email summaries (US-037)
+      notificationPreferences: v.optional(v.object({
+        emailFrequency: v.optional(v.string()), // "realtime", "daily", "weekly", "never"
+        alertTypes: v.optional(v.array(v.string())), // Which alert types to receive
+      })),
     }),
 
     // Timestamps

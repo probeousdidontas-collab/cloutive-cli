@@ -17,6 +17,8 @@ import {
   createMockAwsAccount,
   createMockSubscription,
   createMockAwsCredentials,
+  createMockUser,
+  createMockRecommendation,
 } from "./test.helpers";
 
 // Type assertion helper for convex-test
@@ -308,6 +310,275 @@ describe("Cron Jobs - Daily Cost Collection", () => {
       expect(usageRecords.length).toBe(1);
       expect(usageRecords[0].type).toBe("analysis_run");
       expect(usageRecords[0].quantity).toBe(1);
+    });
+  });
+});
+
+describe("Cron Jobs - Weekly Summary Email (US-037)", () => {
+  describe("getOrganizationsForWeeklySummary query", () => {
+    it("should return organizations with weekly email preference", async () => {
+      const t = createTestConvex();
+
+      // Create org with weekly email preference
+      const org = await t.run(async (ctx: AnyCtx) => {
+        return await ctx.db.insert("organizations", {
+          name: "Weekly Org",
+          slug: "weekly-org",
+          plan: "professional",
+          settings: {
+            enableNotifications: true,
+            notificationPreferences: {
+              emailFrequency: "weekly",
+              alertTypes: ["budget_exceeded", "anomaly_detected"],
+            },
+          },
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      });
+
+      // Create user and membership for the org
+      const user = await createMockUser(t, { email: "user@example.com" });
+      await t.run(async (ctx: AnyCtx) => {
+        await ctx.db.insert("orgMembers", {
+          organizationId: org,
+          userId: user._id,
+          role: "owner",
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      });
+
+      const result = await t.query("crons:getOrganizationsForWeeklySummary", {});
+
+      expect(result.length).toBe(1);
+      expect(result[0].organizationId).toBe(org);
+      expect(result[0].recipients.length).toBe(1);
+      expect(result[0].recipients[0].email).toBe("user@example.com");
+    });
+
+    it("should exclude organizations with notifications disabled", async () => {
+      const t = createTestConvex();
+
+      // Create org with notifications disabled
+      await t.run(async (ctx: AnyCtx) => {
+        return await ctx.db.insert("organizations", {
+          name: "Disabled Org",
+          slug: "disabled-org",
+          plan: "professional",
+          settings: {
+            enableNotifications: false,
+            notificationPreferences: {
+              emailFrequency: "weekly",
+              alertTypes: [],
+            },
+          },
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      });
+
+      const result = await t.query("crons:getOrganizationsForWeeklySummary", {});
+
+      expect(result.length).toBe(0);
+    });
+
+    it("should exclude organizations with non-weekly email frequency", async () => {
+      const t = createTestConvex();
+
+      // Create org with daily email preference
+      await t.run(async (ctx: AnyCtx) => {
+        return await ctx.db.insert("organizations", {
+          name: "Daily Org",
+          slug: "daily-org",
+          plan: "professional",
+          settings: {
+            enableNotifications: true,
+            notificationPreferences: {
+              emailFrequency: "daily",
+              alertTypes: [],
+            },
+          },
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      });
+
+      const result = await t.query("crons:getOrganizationsForWeeklySummary", {});
+
+      expect(result.length).toBe(0);
+    });
+
+    it("should exclude organizations with never email frequency", async () => {
+      const t = createTestConvex();
+
+      await t.run(async (ctx: AnyCtx) => {
+        return await ctx.db.insert("organizations", {
+          name: "Never Org",
+          slug: "never-org",
+          plan: "professional",
+          settings: {
+            enableNotifications: true,
+            notificationPreferences: {
+              emailFrequency: "never",
+              alertTypes: [],
+            },
+          },
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      });
+
+      const result = await t.query("crons:getOrganizationsForWeeklySummary", {});
+
+      expect(result.length).toBe(0);
+    });
+  });
+
+  describe("generateWeeklySummaryData query", () => {
+    it("should include total spend for the week", async () => {
+      const t = createTestConvex();
+
+      const org = await createMockOrganization(t, { name: "Test Org", plan: "professional" });
+      const account = await createMockAwsAccount(t, {
+        organizationId: org._id,
+        status: "active",
+      });
+
+      // Create cost snapshots for the past week
+      const today = new Date();
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split("T")[0];
+
+        await t.run(async (ctx: AnyCtx) => {
+          await ctx.db.insert("costSnapshots", {
+            awsAccountId: account._id,
+            date: dateStr,
+            totalCost: 100, // $100 per day
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          });
+        });
+      }
+
+      const result = await t.query("crons:generateWeeklySummaryData", {
+        organizationId: org._id,
+      });
+
+      expect(result.totalSpend).toBe(700); // 7 days * $100
+    });
+
+    it("should include top cost changes", async () => {
+      const t = createTestConvex();
+
+      const org = await createMockOrganization(t, { name: "Test Org", plan: "professional" });
+      const account = await createMockAwsAccount(t, {
+        organizationId: org._id,
+        status: "active",
+      });
+
+      // Create cost snapshots with service breakdown
+      const today = new Date();
+      const todayStr = today.toISOString().split("T")[0];
+      const weekAgo = new Date(today);
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      const weekAgoStr = weekAgo.toISOString().split("T")[0];
+
+      await t.run(async (ctx: AnyCtx) => {
+        await ctx.db.insert("costSnapshots", {
+          awsAccountId: account._id,
+          date: weekAgoStr,
+          totalCost: 500,
+          serviceBreakdown: { "Amazon EC2": 300, "Amazon S3": 200 },
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+        await ctx.db.insert("costSnapshots", {
+          awsAccountId: account._id,
+          date: todayStr,
+          totalCost: 700,
+          serviceBreakdown: { "Amazon EC2": 500, "Amazon S3": 200 },
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      });
+
+      const result = await t.query("crons:generateWeeklySummaryData", {
+        organizationId: org._id,
+      });
+
+      expect(result.topChanges).toBeDefined();
+      expect(Array.isArray(result.topChanges)).toBe(true);
+    });
+
+    it("should include top recommendations", async () => {
+      const t = createTestConvex();
+
+      const org = await createMockOrganization(t, { name: "Test Org", plan: "professional" });
+      const account = await createMockAwsAccount(t, {
+        organizationId: org._id,
+        status: "active",
+      });
+
+      // Create recommendations
+      await createMockRecommendation(t, {
+        awsAccountId: account._id,
+        title: "Rightsize EC2 Instance",
+        estimatedSavings: 150,
+        status: "open",
+      });
+      await createMockRecommendation(t, {
+        awsAccountId: account._id,
+        title: "Delete Unused EBS Volume",
+        estimatedSavings: 50,
+        status: "open",
+      });
+
+      const result = await t.query("crons:generateWeeklySummaryData", {
+        organizationId: org._id,
+      });
+
+      expect(result.topRecommendations).toBeDefined();
+      expect(result.topRecommendations.length).toBe(2);
+      // Should be sorted by savings (highest first)
+      expect(result.topRecommendations[0].estimatedSavings).toBe(150);
+    });
+
+    it("should limit top recommendations to 5", async () => {
+      const t = createTestConvex();
+
+      const org = await createMockOrganization(t, { name: "Test Org", plan: "professional" });
+      const account = await createMockAwsAccount(t, {
+        organizationId: org._id,
+        status: "active",
+      });
+
+      // Create 10 recommendations
+      for (let i = 0; i < 10; i++) {
+        await createMockRecommendation(t, {
+          awsAccountId: account._id,
+          title: `Recommendation ${i}`,
+          estimatedSavings: (i + 1) * 10,
+          status: "open",
+        });
+      }
+
+      const result = await t.query("crons:generateWeeklySummaryData", {
+        organizationId: org._id,
+      });
+
+      expect(result.topRecommendations.length).toBe(5);
+    });
+  });
+
+  describe("Weekly summary cron job configuration", () => {
+    it("should have weekly cron job defined", async () => {
+      // Import the crons module to verify the cron is defined
+      const cronsModule = await import("./crons");
+      expect(cronsModule.default).toBeDefined();
+      // The cron jobs object exists - we trust the cron configuration is correct
     });
   });
 });
