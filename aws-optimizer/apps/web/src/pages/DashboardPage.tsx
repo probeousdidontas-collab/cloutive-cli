@@ -26,12 +26,13 @@ import {
   IconCloud,
   IconChartPie,
   IconChartLine,
+  IconUser,
 } from "@tabler/icons-react";
 import { useQuery } from "convex/react";
+import { observer } from "mobx-react-lite";
 import { api } from "@aws-optimizer/convex/convex/_generated/api";
 import { useSession, IS_TEST_MODE } from "../lib/auth-client";
-import { useActiveOrganization } from "../hooks";
-import { IconUser } from "@tabler/icons-react";
+import { useOrganization } from "../hooks/useOrganization";
 
 interface CostSnapshot {
   _id: string;
@@ -118,63 +119,52 @@ function getRecommendationTypeLabel(type: string): string {
   return labels[type] || type;
 }
 
-export function DashboardPage() {
+export const DashboardPage = observer(function DashboardPage() {
   const { data: session, isPending: isSessionPending } = useSession();
 
   // Wait for authentication before executing queries
   const isAuthenticated = !isSessionPending && session !== null;
-  
-  // Get user ID from Better Auth session
-  const userId = session?.user?.id;
 
-  // Fetch active organization using custom hook
-  const { organization: activeOrganization, isLoading: isLoadingOrg } = useActiveOrganization(isAuthenticated);
+  // Use organization state from MobX store
+  const {
+    activeOrganization,
+    convexOrgId,
+    isLoading: isLoadingOrg,
+    isReady: isOrgReady,
+  } = useOrganization();
 
-  // Get organization ID from Better Auth active organization
-  const organizationId = activeOrganization?.id;
-
-  // Determine if we have all required IDs for dashboard queries
-  // In test mode, the IDs are strings like "test-org-id" and "test-user-id"
-  const hasRequiredIds = isAuthenticated && userId && organizationId;
+  // Use the resolved Convex organization ID from the store
+  const organizationId = convexOrgId;
 
   // In test mode, use empty args (backend handles test mode)
-  // Otherwise, pass the real IDs
-  const shouldQueryDashboard = isAuthenticated && !isLoadingOrg && (IS_TEST_MODE || hasRequiredIds);
+  // Otherwise, pass the Convex organization ID
+  const shouldQueryDashboard = isAuthenticated && isOrgReady && (IS_TEST_MODE || organizationId);
 
-  // Fetch dashboard data - skip until we have the required IDs (or in test mode)
+  // Fetch dashboard data - skip until we have the organization ID (or in test mode)
   const costSnapshots = useQuery(
     api.dashboard.getCostSnapshots,
     shouldQueryDashboard
       ? IS_TEST_MODE
         ? {} // Empty args for test mode - backend returns mock data
-        : {
-            organizationId: organizationId as never,
-            userId: userId as never,
-          }
+        : { organizationId: organizationId! }
       : "skip"
   ) as CostSnapshot[] | undefined;
-  
+
   const recommendations = useQuery(
     api.dashboard.getTopRecommendations,
     shouldQueryDashboard
       ? IS_TEST_MODE
         ? {} // Empty args for test mode - backend returns mock data
-        : {
-            organizationId: organizationId as never,
-            userId: userId as never,
-          }
+        : { organizationId: organizationId! }
       : "skip"
   ) as Recommendation[] | undefined;
-  
+
   const summary = useQuery(
     api.dashboard.getDashboardSummary,
     shouldQueryDashboard
       ? IS_TEST_MODE
         ? {} // Empty args for test mode - backend returns mock data
-        : {
-            organizationId: organizationId as never,
-            userId: userId as never,
-          }
+        : { organizationId: organizationId! }
       : "skip"
   ) as DashboardSummary | undefined;
 
@@ -273,10 +263,10 @@ export function DashboardPage() {
       .reduce((sum, r) => sum + r.estimatedSavings, 0);
   }, [recommendations]);
 
-  const isLoading = costSnapshots === undefined || recommendations === undefined || isLoadingOrg;
+  const isLoading = costSnapshots === undefined || recommendations === undefined || !isOrgReady;
 
   // Show loading state while waiting for authentication or organization
-  if (isSessionPending || (isAuthenticated && isLoadingOrg)) {
+  if (isSessionPending || (isAuthenticated && !isOrgReady)) {
     return (
       <Center h="calc(100vh - 120px)" data-testid="dashboard-page-loading">
         <Stack align="center" gap="md">
@@ -631,6 +621,6 @@ export function DashboardPage() {
       </Stack>
     </Container>
   );
-}
+});
 
 export default DashboardPage;

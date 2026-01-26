@@ -12,44 +12,10 @@
  * All tools use internal mutations to store data in the database.
  */
 
-import { v } from "convex/values";
+import { createTool } from "@convex-dev/agent";
+import { z } from "zod";
 import type { Id } from "../../_generated/dataModel";
-import type { ActionCtx } from "../../_generated/server";
 import { internal } from "../../_generated/api";
-
-// Tool context type - matches @convex-dev/agent tool context
-interface ToolContext {
-  ctx: ActionCtx;
-  userId?: string;
-  threadId?: string;
-  messageId?: string;
-}
-
-// Result types
-interface SaveCostSnapshotResult {
-  success: boolean;
-  snapshotId: string;
-  message: string;
-}
-
-interface SaveResourceResult {
-  success: boolean;
-  resourceDbId: string;
-  message: string;
-}
-
-interface SaveRecommendationResult {
-  success: boolean;
-  recommendationId: string;
-  message: string;
-}
-
-interface GenerateReportResult {
-  success: boolean;
-  reportId: string;
-  status: string;
-  message: string;
-}
 
 // ============================================================================
 // analysis_saveCostSnapshot Tool
@@ -57,20 +23,18 @@ interface GenerateReportResult {
 
 /**
  * Save a cost snapshot for an AWS account.
- *
- * Called by the AI agent to persist daily cost data gathered from AWS Cost Explorer.
  */
-export const analysis_saveCostSnapshot = Object.assign(
-  async function analysis_saveCostSnapshot(
-    { ctx }: ToolContext,
-    args: {
-      awsAccountId: string;
-      date: string;
-      totalCost: number;
-      serviceBreakdown?: Record<string, number>;
-      regionBreakdown?: Record<string, number>;
-    }
-  ): Promise<SaveCostSnapshotResult> {
+export const analysis_saveCostSnapshot = createTool({
+  description:
+    "Save a daily cost snapshot for an AWS account. Use this to persist cost data gathered from AWS Cost Explorer. Includes total cost and optional breakdown by service and region.",
+  args: z.object({
+    awsAccountId: z.string().describe("The AWS account ID this snapshot is for"),
+    date: z.string().describe("Date of the snapshot in YYYY-MM-DD format"),
+    totalCost: z.number().describe("Total cost in dollars for this day"),
+    serviceBreakdown: z.record(z.string(), z.number()).optional().describe("Cost breakdown by service name"),
+    regionBreakdown: z.record(z.string(), z.number()).optional().describe("Cost breakdown by region"),
+  }),
+  handler: async (ctx, args) => {
     const snapshotId = await ctx.runMutation(internal.ai.mutations.saveCostSnapshot, {
       awsAccountId: args.awsAccountId as Id<"awsAccounts">,
       date: args.date,
@@ -85,18 +49,7 @@ export const analysis_saveCostSnapshot = Object.assign(
       message: `Cost snapshot saved for ${args.date} with total cost $${args.totalCost.toFixed(2)}`,
     };
   },
-  {
-    description:
-      "Save a daily cost snapshot for an AWS account. Use this to persist cost data gathered from AWS Cost Explorer. Includes total cost and optional breakdown by service and region.",
-    args: {
-      awsAccountId: v.string(),
-      date: v.string(),
-      totalCost: v.number(),
-      serviceBreakdown: v.optional(v.record(v.string(), v.number())),
-      regionBreakdown: v.optional(v.record(v.string(), v.number())),
-    },
-  }
-);
+});
 
 // ============================================================================
 // analysis_saveResource Tool
@@ -104,22 +57,20 @@ export const analysis_saveCostSnapshot = Object.assign(
 
 /**
  * Save a discovered AWS resource.
- *
- * Called by the AI agent to persist resource inventory data.
  */
-export const analysis_saveResource = Object.assign(
-  async function analysis_saveResource(
-    { ctx }: ToolContext,
-    args: {
-      awsAccountId: string;
-      resourceType: string;
-      resourceId: string;
-      name?: string;
-      region?: string;
-      tags?: Record<string, string>;
-      monthlyCost?: number;
-    }
-  ): Promise<SaveResourceResult> {
+export const analysis_saveResource = createTool({
+  description:
+    "Save a discovered AWS resource to the inventory. Use this to persist EC2 instances, RDS databases, S3 buckets, Lambda functions, and other AWS resources found during analysis.",
+  args: z.object({
+    awsAccountId: z.string().describe("The AWS account ID this resource belongs to"),
+    resourceType: z.string().describe("Type of resource: EC2, RDS, S3, Lambda, EBS, etc."),
+    resourceId: z.string().describe("AWS resource ID (e.g., i-1234567890abcdef0)"),
+    name: z.string().optional().describe("Resource name (from Name tag or similar)"),
+    region: z.string().optional().describe("AWS region where the resource is located"),
+    tags: z.record(z.string(), z.string()).optional().describe("Resource tags as key-value pairs"),
+    monthlyCost: z.number().optional().describe("Estimated monthly cost in dollars"),
+  }),
+  handler: async (ctx, args) => {
     const resourceDbId = await ctx.runMutation(internal.ai.mutations.saveResource, {
       awsAccountId: args.awsAccountId as Id<"awsAccounts">,
       resourceType: args.resourceType,
@@ -136,20 +87,7 @@ export const analysis_saveResource = Object.assign(
       message: `Resource ${args.resourceType}/${args.resourceId} saved${args.name ? ` (${args.name})` : ""}`,
     };
   },
-  {
-    description:
-      "Save a discovered AWS resource to the inventory. Use this to persist EC2 instances, RDS databases, S3 buckets, Lambda functions, and other AWS resources found during analysis.",
-    args: {
-      awsAccountId: v.string(),
-      resourceType: v.string(),
-      resourceId: v.string(),
-      name: v.optional(v.string()),
-      region: v.optional(v.string()),
-      tags: v.optional(v.record(v.string(), v.string())),
-      monthlyCost: v.optional(v.number()),
-    },
-  }
-);
+});
 
 // ============================================================================
 // recommendation_save Tool
@@ -157,21 +95,19 @@ export const analysis_saveResource = Object.assign(
 
 /**
  * Save a cost optimization recommendation.
- *
- * Called by the AI agent to persist savings recommendations.
  */
-export const recommendation_save = Object.assign(
-  async function recommendation_save(
-    { ctx }: ToolContext,
-    args: {
-      awsAccountId: string;
-      type: string;
-      title: string;
-      description: string;
-      estimatedSavings: number;
-      status?: string;
-    }
-  ): Promise<SaveRecommendationResult> {
+export const recommendation_save = createTool({
+  description:
+    "Save a cost optimization recommendation. Use this to persist savings opportunities identified during analysis, such as rightsizing, reserved instances, unused resources, and storage optimizations.",
+  args: z.object({
+    awsAccountId: z.string().describe("The AWS account ID this recommendation is for"),
+    type: z.string().describe("Type: rightsizing, reserved_instance, savings_plan, unused_resource, idle_resource, storage_optimization, network_optimization"),
+    title: z.string().describe("Short title describing the recommendation"),
+    description: z.string().describe("Detailed description with actionable steps"),
+    estimatedSavings: z.number().describe("Estimated monthly savings in dollars"),
+    status: z.string().optional().describe("Status: open, implemented, dismissed, in_progress (default: open)"),
+  }),
+  handler: async (ctx, args) => {
     const recommendationId = await ctx.runMutation(internal.ai.mutations.saveRecommendation, {
       awsAccountId: args.awsAccountId as Id<"awsAccounts">,
       type: args.type as "rightsizing" | "reserved_instance" | "savings_plan" | "unused_resource" | "idle_resource" | "storage_optimization" | "network_optimization",
@@ -187,19 +123,7 @@ export const recommendation_save = Object.assign(
       message: `Recommendation saved: "${args.title}" with estimated savings of $${args.estimatedSavings.toFixed(2)}/month`,
     };
   },
-  {
-    description:
-      "Save a cost optimization recommendation. Use this to persist savings opportunities identified during analysis, such as rightsizing, reserved instances, unused resources, and storage optimizations.",
-    args: {
-      awsAccountId: v.string(),
-      type: v.string(),
-      title: v.string(),
-      description: v.string(),
-      estimatedSavings: v.number(),
-      status: v.optional(v.string()),
-    },
-  }
-);
+});
 
 // ============================================================================
 // analysis_generateReport Tool
@@ -207,18 +131,16 @@ export const recommendation_save = Object.assign(
 
 /**
  * Generate and save an analysis report.
- *
- * Called by the AI agent to create cost analysis, savings, or inventory reports.
  */
-export const analysis_generateReport = Object.assign(
-  async function analysis_generateReport(
-    { ctx }: ToolContext,
-    args: {
-      organizationId: string;
-      type: string;
-      title: string;
-    }
-  ): Promise<GenerateReportResult> {
+export const analysis_generateReport = createTool({
+  description:
+    "Generate an analysis report for an organization. Supported types: cost_analysis, savings_summary, resource_inventory, recommendation_summary, executive_summary. The report is queued for generation and can be retrieved later.",
+  args: z.object({
+    organizationId: z.string().describe("The organization ID to generate the report for"),
+    type: z.string().describe("Report type: cost_analysis, savings_summary, resource_inventory, recommendation_summary, executive_summary"),
+    title: z.string().describe("Title for the report"),
+  }),
+  handler: async (ctx, args) => {
     const reportId = await ctx.runMutation(internal.ai.mutations.createReport, {
       organizationId: args.organizationId as Id<"organizations">,
       type: args.type as "cost_analysis" | "savings_summary" | "resource_inventory" | "recommendation_summary" | "executive_summary",
@@ -232,16 +154,7 @@ export const analysis_generateReport = Object.assign(
       message: `Report "${args.title}" created and queued for generation`,
     };
   },
-  {
-    description:
-      "Generate an analysis report for an organization. Supported types: cost_analysis, savings_summary, resource_inventory, recommendation_summary, executive_summary. The report is queued for generation and can be retrieved later.",
-    args: {
-      organizationId: v.string(),
-      type: v.string(),
-      title: v.string(),
-    },
-  }
-);
+});
 
 // ============================================================================
 // Export all tools

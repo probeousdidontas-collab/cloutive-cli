@@ -5,6 +5,7 @@
  * - INI format (standard ~/.aws/credentials)
  * - JSON format (exported credentials)
  * - ENV format (.env file with AWS_ variables)
+ * - CSV format (AWS Console credential exports)
  */
 
 export interface ParsedCredential {
@@ -19,14 +20,14 @@ export interface ParsedCredential {
 export interface ParseResult {
   success: boolean;
   profiles: ParsedCredential[];
-  format: "ini" | "json" | "env" | "unknown";
+  format: "ini" | "json" | "env" | "csv" | "unknown";
   error?: string;
 }
 
 /**
  * Detect the format of the credentials file content
  */
-export function detectFormat(content: string): "ini" | "json" | "env" | "unknown" {
+export function detectFormat(content: string): "ini" | "json" | "env" | "csv" | "unknown" {
   const trimmed = content.trim();
 
   // Check for JSON (starts with { or [)
@@ -42,6 +43,16 @@ export function detectFormat(content: string): "ini" | "json" | "env" | "unknown
   // Check for INI format (has [section] headers)
   if (/^\[\w+\]/m.test(trimmed)) {
     return "ini";
+  }
+
+  // Check for CSV format (has header row with Access key ID or AccessKeyId)
+  const firstLine = trimmed.split(/\r?\n/)[0].toLowerCase();
+  if (
+    (firstLine.includes("access key id") || firstLine.includes("accesskeyid")) &&
+    (firstLine.includes("secret access key") || firstLine.includes("secretaccesskey")) &&
+    firstLine.includes(",")
+  ) {
+    return "csv";
   }
 
   // Check for ENV format (has KEY=value lines with AWS_ - may have export prefix)
@@ -232,6 +243,126 @@ function parseJsonFormat(content: string): ParsedCredential[] {
 }
 
 /**
+ * Parse CSV format credentials (AWS Console export)
+ *
+ * Common formats:
+ * 1. Simple format:
+ *    Access key ID,Secret access key
+ *    AKIAIOSFODNN7EXAMPLE,wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+ *
+ * 2. Full format with user info:
+ *    User name,Password,Access key ID,Secret access key,Console login link
+ *    myuser,,AKIAIOSFODNN7EXAMPLE,secret,https://...
+ *
+ * 3. With additional columns:
+ *    User Name,Access Key Id,Secret Access Key,Status
+ *    myuser,AKIAIOSFODNN7EXAMPLE,secret,Active
+ */
+function parseCsvFormat(content: string): ParsedCredential[] {
+  const lines = content.split(/\r?\n/).filter((line) => line.trim());
+  if (lines.length < 2) {
+    return [];
+  }
+
+  // Parse header row to find column indices
+  const headerLine = lines[0];
+  const headers = parseCsvLine(headerLine).map((h) => h.toLowerCase().trim());
+
+  // Find column indices for required fields
+  const accessKeyIdIndex = headers.findIndex(
+    (h) => h === "access key id" || h === "accesskeyid" || h === "access_key_id"
+  );
+  const secretKeyIndex = headers.findIndex(
+    (h) =>
+      h === "secret access key" ||
+      h === "secretaccesskey" ||
+      h === "secret_access_key"
+  );
+
+  if (accessKeyIdIndex === -1 || secretKeyIndex === -1) {
+    return [];
+  }
+
+  // Find optional column indices
+  const userNameIndex = headers.findIndex(
+    (h) => h === "user name" || h === "username" || h === "user" || h === "name"
+  );
+  const sessionTokenIndex = headers.findIndex(
+    (h) => h === "session token" || h === "sessiontoken" || h === "session_token"
+  );
+
+  const profiles: ParsedCredential[] = [];
+
+  // Parse data rows (skip header)
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+
+    const values = parseCsvLine(line);
+    const accessKeyId = values[accessKeyIdIndex]?.trim();
+    const secretAccessKey = values[secretKeyIndex]?.trim();
+
+    if (!accessKeyId || !secretAccessKey) {
+      continue;
+    }
+
+    // Use username as profile name if available, otherwise use "default" or indexed name
+    let profileName = "default";
+    if (userNameIndex !== -1 && values[userNameIndex]?.trim()) {
+      profileName = values[userNameIndex].trim();
+    } else if (profiles.length > 0) {
+      profileName = `profile-${profiles.length + 1}`;
+    }
+
+    const sessionToken =
+      sessionTokenIndex !== -1 ? values[sessionTokenIndex]?.trim() : undefined;
+
+    profiles.push({
+      profileName,
+      accessKeyId,
+      secretAccessKey,
+      sessionToken: sessionToken || undefined,
+    });
+  }
+
+  return profiles;
+}
+
+/**
+ * Parse a single CSV line, handling quoted values
+ */
+function parseCsvLine(line: string): string[] {
+  const result: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+
+    if (char === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        // Escaped quote
+        current += '"';
+        i++;
+      } else {
+        // Toggle quote state
+        inQuotes = !inQuotes;
+      }
+    } else if (char === "," && !inQuotes) {
+      result.push(current);
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+
+  // Don't forget the last field
+  result.push(current);
+
+  return result;
+}
+
+/**
  * Parse ENV format credentials
  *
  * Example:
@@ -310,12 +441,15 @@ export function parseCredentialsFile(content: string): ParseResult {
       case "env":
         profiles = parseEnvFormat(content);
         break;
+      case "csv":
+        profiles = parseCsvFormat(content);
+        break;
       default:
         return {
           success: false,
           profiles: [],
           format: "unknown",
-          error: "Unable to detect file format. Supported formats: INI (.aws/credentials), JSON, ENV (.env)",
+          error: "Unable to detect file format. Supported formats: INI (.aws/credentials), JSON, ENV (.env), CSV",
         };
     }
 
@@ -374,6 +508,96 @@ export function isTemporaryCredentials(cred: ParsedCredential): boolean {
 }
 
 /**
+ * Expiry status for credentials
+ */
+export type CredentialExpiryStatus = 
+  | { status: "valid"; expiresAt?: number }
+  | { status: "expiring_soon"; expiresAt: number; expiresInMinutes: number }
+  | { status: "expired"; expiresAt: number; expiredMinutesAgo: number }
+  | { status: "no_expiry" };
+
+/**
+ * Check if credentials are expired
+ * Returns true if credentials have an expiration time that has passed
+ */
+export function isCredentialExpired(cred: ParsedCredential): boolean {
+  if (!cred.expiresAt) {
+    return false;
+  }
+  return Date.now() > cred.expiresAt;
+}
+
+/**
+ * Get detailed expiry status for credentials
+ * @param cred - The credential to check
+ * @param expiringThresholdMinutes - Minutes threshold to consider "expiring soon" (default: 60)
+ */
+export function getCredentialExpiryStatus(
+  cred: ParsedCredential,
+  expiringThresholdMinutes: number = 60
+): CredentialExpiryStatus {
+  if (!cred.expiresAt) {
+    return { status: "no_expiry" };
+  }
+
+  const now = Date.now();
+  const diffMs = cred.expiresAt - now;
+  const diffMinutes = Math.floor(diffMs / 60000);
+
+  if (diffMs < 0) {
+    return {
+      status: "expired",
+      expiresAt: cred.expiresAt,
+      expiredMinutesAgo: Math.abs(diffMinutes),
+    };
+  }
+
+  if (diffMinutes <= expiringThresholdMinutes) {
+    return {
+      status: "expiring_soon",
+      expiresAt: cred.expiresAt,
+      expiresInMinutes: diffMinutes,
+    };
+  }
+
+  return {
+    status: "valid",
+    expiresAt: cred.expiresAt,
+  };
+}
+
+/**
+ * Format expiry time in a human-readable way
+ */
+export function formatExpiryTime(expiresAt: number): string {
+  const now = Date.now();
+  const diffMs = expiresAt - now;
+  const diffMinutes = Math.floor(Math.abs(diffMs) / 60000);
+  const diffHours = Math.floor(diffMinutes / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffMs < 0) {
+    // Expired
+    if (diffMinutes < 60) {
+      return `Expired ${diffMinutes} minute${diffMinutes !== 1 ? "s" : ""} ago`;
+    }
+    if (diffHours < 24) {
+      return `Expired ${diffHours} hour${diffHours !== 1 ? "s" : ""} ago`;
+    }
+    return `Expired ${diffDays} day${diffDays !== 1 ? "s" : ""} ago`;
+  }
+
+  // Still valid
+  if (diffMinutes < 60) {
+    return `Expires in ${diffMinutes} minute${diffMinutes !== 1 ? "s" : ""}`;
+  }
+  if (diffHours < 24) {
+    return `Expires in ${diffHours} hour${diffHours !== 1 ? "s" : ""}`;
+  }
+  return `Expires in ${diffDays} day${diffDays !== 1 ? "s" : ""}`;
+}
+
+/**
  * Get human-readable format name
  */
 export function getFormatDisplayName(format: ParseResult["format"]): string {
@@ -381,6 +605,7 @@ export function getFormatDisplayName(format: ParseResult["format"]): string {
     ini: "AWS Credentials File (INI)",
     json: "JSON",
     env: "Environment File (.env)",
+    csv: "CSV (AWS Console Export)",
     unknown: "Unknown",
   };
   return names[format];

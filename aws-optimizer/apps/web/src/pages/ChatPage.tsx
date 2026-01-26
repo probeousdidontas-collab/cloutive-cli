@@ -141,7 +141,8 @@ export function ChatPage() {
   };
 
   // Cast messages to Message[] type - the agent library returns messages with role field
-  const messageList = (messages?.page || []) as Message[];
+  // Use unknown intermediate cast since the types don't overlap sufficiently
+  const messageList = (messages?.page || []) as unknown as Message[];
   // Map threads to ensure consistent interface
   const threadList: Thread[] = (threads?.page || []).map((t: { id?: string; _id?: string; title?: string; createdAt?: number; _creationTime?: number; status?: string }) => ({
     id: t.id || t._id || "",

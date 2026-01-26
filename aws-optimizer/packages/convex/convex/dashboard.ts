@@ -230,22 +230,6 @@ function generateTestSummary() {
 }
 
 /**
- * Helper to get a user's membership in an organization.
- */
-async function getMembership(
-  ctx: QueryCtx,
-  organizationId: Id<"organizations">,
-  userId: Id<"users">
-): Promise<Doc<"orgMembers"> | null> {
-  return await ctx.db
-    .query("orgMembers")
-    .withIndex("by_org_user", (q) =>
-      q.eq("organizationId", organizationId).eq("userId", userId)
-    )
-    .first();
-}
-
-/**
  * Get all AWS accounts for an organization.
  */
 async function getOrgAwsAccounts(
@@ -266,17 +250,16 @@ async function getOrgAwsAccounts(
 export const getCostSnapshots = query({
   args: {
     organizationId: v.optional(v.id("organizations")),
-    userId: v.optional(v.id("users")),
     startDate: v.optional(v.string()), // YYYY-MM-DD format
     endDate: v.optional(v.string()),   // YYYY-MM-DD format
   },
   handler: async (ctx, args) => {
-    const { organizationId, userId, startDate, endDate } = args;
+    const { organizationId, startDate, endDate } = args;
 
     // In test mode, return sample cost data
     if (isTestMode()) {
       let snapshots = generateTestCostSnapshots();
-      
+
       // Filter by date range if provided
       if (startDate) {
         snapshots = snapshots.filter((s) => s.date >= startDate);
@@ -284,19 +267,19 @@ export const getCostSnapshots = query({
       if (endDate) {
         snapshots = snapshots.filter((s) => s.date <= endDate);
       }
-      
+
       return snapshots;
     }
 
-    // Require IDs when not in test mode
-    if (!organizationId || !userId) {
+    // Require organization ID when not in test mode
+    if (!organizationId) {
       return [];
     }
 
-    // Check if user is a member of the organization
-    const membership = await getMembership(ctx, organizationId, userId);
-    if (!membership) {
-      throw new Error("You are not a member of this organization");
+    // Verify organization exists
+    const organization = await ctx.db.get(organizationId);
+    if (!organization) {
+      return [];
     }
 
     // Get all AWS accounts for this organization
@@ -345,11 +328,10 @@ export const getCostSnapshots = query({
 export const getTopRecommendations = query({
   args: {
     organizationId: v.optional(v.id("organizations")),
-    userId: v.optional(v.id("users")),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const { organizationId, userId, limit = 5 } = args;
+    const { organizationId, limit = 5 } = args;
 
     // In test mode, return sample recommendations
     if (isTestMode()) {
@@ -361,15 +343,15 @@ export const getTopRecommendations = query({
         .slice(0, limit);
     }
 
-    // Require IDs when not in test mode
-    if (!organizationId || !userId) {
+    // Require organization ID when not in test mode
+    if (!organizationId) {
       return [];
     }
 
-    // Check if user is a member of the organization
-    const membership = await getMembership(ctx, organizationId, userId);
-    if (!membership) {
-      throw new Error("You are not a member of this organization");
+    // Verify organization exists
+    const organization = await ctx.db.get(organizationId);
+    if (!organization) {
+      return [];
     }
 
     // Get all AWS accounts for this organization
@@ -414,25 +396,24 @@ export const getTopRecommendations = query({
 export const getDashboardSummary = query({
   args: {
     organizationId: v.optional(v.id("organizations")),
-    userId: v.optional(v.id("users")),
   },
   handler: async (ctx, args) => {
-    const { organizationId, userId } = args;
+    const { organizationId } = args;
 
     // In test mode, return summary from sample data
     if (isTestMode()) {
       return generateTestSummary();
     }
 
-    // Require IDs when not in test mode
-    if (!organizationId || !userId) {
+    // Require organization ID when not in test mode
+    if (!organizationId) {
       return null;
     }
 
-    // Check if user is a member of the organization
-    const membership = await getMembership(ctx, organizationId, userId);
-    if (!membership) {
-      throw new Error("You are not a member of this organization");
+    // Verify organization exists
+    const organization = await ctx.db.get(organizationId);
+    if (!organization) {
+      return null;
     }
 
     // Get all AWS accounts for this organization

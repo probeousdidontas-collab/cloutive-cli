@@ -31,6 +31,8 @@ import {
   IconShieldOff,
 } from "@tabler/icons-react";
 import { useQuery, useAction } from "convex/react";
+import { observer } from "mobx-react-lite";
+import { useOrganization } from "../hooks/useOrganization";
 import { api } from "@aws-optimizer/convex/convex/_generated/api";
 import type { Id } from "@aws-optimizer/convex/convex/_generated/dataModel";
 
@@ -116,7 +118,7 @@ function formatTimestamp(timestamp: number): string {
   return date.toLocaleTimeString();
 }
 
-export function TerminalPage() {
+export const TerminalPage = observer(function TerminalPage() {
   // State
   const [command, setCommand] = useState("");
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
@@ -125,9 +127,14 @@ export function TerminalPage() {
   const [currentResult, setCurrentResult] = useState<CommandResult | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
 
-  // Fetch accounts
-  // Fetch data - these APIs work without arguments, they get org from auth context
-  const accountsData = useQuery(api.awsAccounts.listByOrganization);
+  // Use organization state from MobX store
+  const { convexOrgId } = useOrganization();
+
+  // Fetch accounts - pass organizationId to get accounts for the current org
+  const accountsData = useQuery(
+    api.awsAccounts.listByOrganization,
+    convexOrgId ? { organizationId: convexOrgId } : "skip"
+  );
   const accounts = accountsData as AwsAccount[] | undefined;
   const executeCommand = useAction(api.sandbox.executeCommand);
 
@@ -504,6 +511,6 @@ export function TerminalPage() {
       </Stack>
     </Container>
   );
-}
+});
 
 export default TerminalPage;

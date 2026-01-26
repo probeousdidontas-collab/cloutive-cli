@@ -101,7 +101,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                   metadata?: null | string;
                   name: string;
                   slug?: null | string;
-                  updatedAt: number;
+                  updatedAt?: number;
                 };
                 model: "organization";
               }
@@ -110,7 +110,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                   createdAt: number;
                   organizationId: string;
                   role: string;
-                  updatedAt: number;
+                  updatedAt?: number;
                   userId: string;
                 };
                 model: "member";
@@ -124,7 +124,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                   organizationId: string;
                   role: string;
                   status: string;
-                  updatedAt: number;
+                  updatedAt?: number;
                 };
                 model: "invitation";
               };

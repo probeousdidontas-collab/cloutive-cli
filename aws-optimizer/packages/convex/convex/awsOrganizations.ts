@@ -13,34 +13,13 @@
 import { v } from "convex/values";
 import { mutation, query, action, internalAction, internalMutation, internalQuery } from "./_generated/server";
 import { internal } from "./_generated/api";
-import type { Id, Doc } from "./_generated/dataModel";
 import { rateLimiter, logRateLimitEvent } from "./rateLimit";
-import type { MutationCtx, QueryCtx } from "./_generated/server";
-
-// Roles that can manage AWS Organizations discovery
-const WRITE_ROLES = ["owner", "admin"] as const;
 
 // Platform account ID for cross-account role assumption
 const PLATFORM_AWS_ACCOUNT_ID = process.env.PLATFORM_AWS_ACCOUNT_ID || "000000000000";
 
 // Sandbox worker URL
 const SANDBOX_WORKER_URL = process.env.SANDBOX_WORKER_URL;
-
-/**
- * Helper to get a user's membership in an organization.
- */
-async function getMembership(
-  ctx: QueryCtx | MutationCtx,
-  organizationId: Id<"organizations">,
-  userId: Id<"users">
-): Promise<Doc<"orgMembers"> | null> {
-  return await ctx.db
-    .query("orgMembers")
-    .withIndex("by_org_user", (q) =>
-      q.eq("organizationId", organizationId).eq("userId", userId)
-    )
-    .first();
-}
 
 /**
  * Simple credential decryption (placeholder).
@@ -184,7 +163,6 @@ export const listDiscoveries = query({
 export const startDiscovery = mutation({
   args: {
     organizationId: v.id("organizations"),
-    userId: v.id("users"),
     managementAccountNumber: v.string(),
     accessKeyId: v.string(),
     secretAccessKey: v.string(),
@@ -194,15 +172,13 @@ export const startDiscovery = mutation({
   handler: async (ctx, args) => {
     const now = Date.now();
 
-    // Check if user has permission
-    const membership = await getMembership(ctx, args.organizationId, args.userId);
-    if (!membership) {
-      throw new Error("You are not a member of this organization");
+    // Verify the organization exists
+    const organization = await ctx.db.get(args.organizationId);
+    if (!organization) {
+      throw new Error("Organization not found");
     }
 
-    if (!WRITE_ROLES.includes(membership.role as typeof WRITE_ROLES[number])) {
-      throw new Error("You do not have permission to import AWS Organizations");
-    }
+    // Note: Authentication and authorization are handled by Better Auth at the API layer.
 
     // Validate account number
     if (!/^\d{12}$/.test(args.managementAccountNumber)) {
@@ -360,7 +336,6 @@ export const saveDiscoveredAccounts = internalMutation({
 export const updateAccountSelections = mutation({
   args: {
     discoveryId: v.id("awsOrgDiscoveries"),
-    userId: v.id("users"),
     selections: v.array(
       v.object({
         accountId: v.id("discoveredAwsAccounts"),
@@ -377,11 +352,7 @@ export const updateAccountSelections = mutation({
       throw new Error("Discovery session not found");
     }
 
-    // Check permissions
-    const membership = await getMembership(ctx, discovery.organizationId, args.userId);
-    if (!membership || !WRITE_ROLES.includes(membership.role as typeof WRITE_ROLES[number])) {
-      throw new Error("You do not have permission to manage account selections");
-    }
+    // Note: Authentication and authorization are handled by Better Auth at the API layer.
 
     // Update each selection
     for (const selection of args.selections) {

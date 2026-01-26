@@ -31,6 +31,7 @@ import type * as dashboard from "../dashboard.js";
 import type * as functions from "../functions.js";
 import type * as http from "../http.js";
 import type * as organizationEmails from "../organizationEmails.js";
+import type * as organizations from "../organizations.js";
 import type * as partner from "../partner.js";
 import type * as rateLimit from "../rateLimit.js";
 import type * as recommendations from "../recommendations.js";
@@ -69,6 +70,7 @@ declare const fullApi: ApiFromModules<{
   functions: typeof functions;
   http: typeof http;
   organizationEmails: typeof organizationEmails;
+  organizations: typeof organizations;
   partner: typeof partner;
   rateLimit: typeof rateLimit;
   recommendations: typeof recommendations;
@@ -3814,7 +3816,7 @@ export declare const components: {
                   metadata?: null | string;
                   name: string;
                   slug?: null | string;
-                  updatedAt: number;
+                  updatedAt?: number;
                 };
                 model: "organization";
               }
@@ -3823,7 +3825,7 @@ export declare const components: {
                   createdAt: number;
                   organizationId: string;
                   role: string;
-                  updatedAt: number;
+                  updatedAt?: number;
                   userId: string;
                 };
                 model: "member";
@@ -3837,7 +3839,7 @@ export declare const components: {
                   organizationId: string;
                   role: string;
                   status: string;
-                  updatedAt: number;
+                  updatedAt?: number;
                 };
                 model: "invitation";
               };

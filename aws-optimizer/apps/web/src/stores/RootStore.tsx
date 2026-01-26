@@ -1,4 +1,5 @@
 import { makeAutoObservable } from "mobx";
+import { OrganizationStore } from "./OrganizationStore";
 
 /**
  * RootStore - Central container for all MobX stores
@@ -16,8 +17,18 @@ export class RootStore {
   // UI state
   sidebarOpen = true;
 
+  // Domain stores
+  organizationStore: OrganizationStore;
+
   constructor() {
-    makeAutoObservable(this);
+    // Initialize domain stores
+    this.organizationStore = new OrganizationStore();
+
+    // Make this store observable, but exclude child stores
+    // (they have their own makeAutoObservable)
+    makeAutoObservable(this, {
+      organizationStore: false,
+    });
   }
 
   toggleSidebar(): void {
@@ -26,7 +37,8 @@ export class RootStore {
 
   /** Dispose all stores */
   dispose(): void {
-    // Clean up subscriptions if needed
+    // Reset organization store on dispose
+    this.organizationStore.reset();
   }
 }
 

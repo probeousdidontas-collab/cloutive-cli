@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Menu,
   UnstyledButton,
@@ -22,105 +22,45 @@ import {
   IconSettings,
 } from "@tabler/icons-react";
 import { useNavigate } from "@tanstack/react-router";
-import { organizationMethods, IS_TEST_MODE } from "../lib/auth-client";
-import { showSuccessToast, showErrorToast } from "../lib/notifications";
+import { observer } from "mobx-react-lite";
+import { IS_TEST_MODE } from "../lib/auth-client";
+import { useOrganization } from "../hooks/useOrganization";
 
-interface Organization {
-  id: string;
-  name: string;
-  slug?: string | null;
-  logo?: string | null;
-  role?: string;
-}
-
-export function OrganizationSwitcher() {
+/**
+ * OrganizationSwitcher - Component for switching between organizations.
+ *
+ * Uses MobX store for organization state, eliminating page reloads on switch.
+ */
+export const OrganizationSwitcher = observer(function OrganizationSwitcher() {
   const navigate = useNavigate();
-  const [organizations, setOrganizations] = useState<Organization[]>([]);
-  const [activeOrg, setActiveOrg] = useState<Organization | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSwitching, setIsSwitching] = useState(false);
+  const {
+    activeOrganization,
+    organizations,
+    isLoading,
+    isSwitching,
+    switchOrganization,
+    createOrganization,
+  } = useOrganization();
+
   const [createModalOpened, { open: openCreateModal, close: closeCreateModal }] = useDisclosure(false);
   const [newOrgName, setNewOrgName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
 
-  // Fetch organizations on mount
-  useEffect(() => {
-    fetchOrganizations();
-  }, []);
-
-  const fetchOrganizations = async () => {
-    setIsLoading(true);
-    try {
-      const result = await organizationMethods.list();
-      if (result.data) {
-        setOrganizations(result.data as Organization[]);
-        // Get active org from session
-        // Better Auth stores active org differently - try to get it from the full organization call
-        try {
-          const activeOrgResult = await organizationMethods.getActive();
-          if (activeOrgResult.data?.id) {
-            const active = (result.data as Organization[]).find((org) => org.id === activeOrgResult.data?.id);
-            setActiveOrg(active || null);
-          } else if (result.data.length > 0) {
-            // Default to first org if none active
-            setActiveOrg(result.data[0] as Organization);
-          }
-        } catch {
-          // If getActive fails, default to first org
-          if (result.data.length > 0) {
-            setActiveOrg(result.data[0] as Organization);
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Failed to fetch organizations:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSwitchOrg = async (org: Organization) => {
-    if (org.id === activeOrg?.id) return;
-    
-    setIsSwitching(true);
-    try {
-      const result = await organizationMethods.setActive(org.id);
-      if (result.error) {
-        showErrorToast(`Failed to switch organization: ${result.error.message}`);
-      } else {
-        setActiveOrg(org);
-        showSuccessToast(`Switched to ${org.name}`);
-        // Refresh the page to load new org data
-        window.location.reload();
-      }
-    } catch (error) {
-      showErrorToast("Failed to switch organization");
-    } finally {
-      setIsSwitching(false);
-    }
+  const handleSwitchOrg = async (orgId: string) => {
+    if (orgId === activeOrganization?.id) return;
+    await switchOrganization(orgId);
   };
 
   const handleCreateOrg = async () => {
     if (!newOrgName.trim()) return;
-    
+
     setIsCreating(true);
     try {
-      const slug = newOrgName.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-      const result = await organizationMethods.create(newOrgName, slug);
-      if (result.error) {
-        showErrorToast(`Failed to create organization: ${result.error.message}`);
-      } else {
-        showSuccessToast(`Organization "${newOrgName}" created`);
+      const success = await createOrganization(newOrgName, true);
+      if (success) {
         closeCreateModal();
         setNewOrgName("");
-        // Refresh orgs and switch to the new one
-        await fetchOrganizations();
-        if (result.data?.id) {
-          await handleSwitchOrg({ id: result.data.id, name: newOrgName, slug });
-        }
       }
-    } catch (error) {
-      showErrorToast("Failed to create organization");
     } finally {
       setIsCreating(false);
     }
@@ -134,17 +74,55 @@ export function OrganizationSwitcher() {
     );
   }
 
-  // Don't render if no organizations
+  // Render create modal - must be rendered in all code paths
+  const createModal = (
+    <Modal
+      opened={createModalOpened}
+      onClose={closeCreateModal}
+      title="Create New Organization"
+      centered
+    >
+      <Stack gap="md">
+        <TextInput
+          label="Organization Name"
+          placeholder="My Company"
+          value={newOrgName}
+          onChange={(e) => setNewOrgName(e.target.value)}
+          required
+        />
+        <Text size="xs" c="dimmed">
+          You'll be the owner of this organization and can invite team members.
+        </Text>
+        <Group justify="flex-end">
+          <Button variant="subtle" onClick={closeCreateModal}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleCreateOrg}
+            loading={isCreating}
+            disabled={!newOrgName.trim()}
+          >
+            Create Organization
+          </Button>
+        </Group>
+      </Stack>
+    </Modal>
+  );
+
+  // Show standalone button if no organizations
   if (organizations.length === 0 && !IS_TEST_MODE) {
     return (
-      <Button
-        variant="subtle"
-        size="sm"
-        leftSection={<IconPlus size={16} />}
-        onClick={openCreateModal}
-      >
-        Create Organization
-      </Button>
+      <>
+        <Button
+          variant="subtle"
+          size="sm"
+          leftSection={<IconPlus size={16} />}
+          onClick={openCreateModal}
+        >
+          Create Organization
+        </Button>
+        {createModal}
+      </>
     );
   }
 
@@ -155,19 +133,19 @@ export function OrganizationSwitcher() {
           <UnstyledButton disabled={isSwitching}>
             <Group gap="xs">
               <Avatar size="sm" radius="sm" color="orange">
-                {activeOrg?.logo ? (
-                  <img src={activeOrg.logo} alt={activeOrg.name} />
+                {activeOrganization?.logo ? (
+                  <img src={activeOrganization.logo} alt={activeOrganization.name} />
                 ) : (
                   <IconBuilding size={16} />
                 )}
               </Avatar>
               <Stack gap={0} visibleFrom="md">
                 <Text size="sm" fw={500} lineClamp={1}>
-                  {activeOrg?.name || "Select Organization"}
+                  {activeOrganization?.name || "Select Organization"}
                 </Text>
-                {activeOrg?.role && (
+                {activeOrganization?.role && (
                   <Text size="xs" c="dimmed" tt="capitalize">
-                    {activeOrg.role}
+                    {activeOrganization.role}
                   </Text>
                 )}
               </Stack>
@@ -195,11 +173,11 @@ export function OrganizationSwitcher() {
                 </Avatar>
               }
               rightSection={
-                org.id === activeOrg?.id ? (
+                org.id === activeOrganization?.id ? (
                   <IconCheck size={14} color="var(--mantine-color-green-6)" />
                 ) : null
               }
-              onClick={() => handleSwitchOrg(org)}
+              onClick={() => handleSwitchOrg(org.id)}
             >
               <Group gap="xs" justify="space-between" style={{ flex: 1 }}>
                 <Text size="sm" lineClamp={1}>
@@ -223,7 +201,7 @@ export function OrganizationSwitcher() {
             Create Organization
           </Menu.Item>
 
-          {activeOrg && (
+          {activeOrganization && (
             <Menu.Item
               leftSection={<IconSettings size={14} />}
               onClick={() => navigate({ to: "/settings" })}
@@ -234,38 +212,7 @@ export function OrganizationSwitcher() {
         </Menu.Dropdown>
       </Menu>
 
-      {/* Create Organization Modal */}
-      <Modal
-        opened={createModalOpened}
-        onClose={closeCreateModal}
-        title="Create New Organization"
-        centered
-      >
-        <Stack gap="md">
-          <TextInput
-            label="Organization Name"
-            placeholder="My Company"
-            value={newOrgName}
-            onChange={(e) => setNewOrgName(e.target.value)}
-            required
-          />
-          <Text size="xs" c="dimmed">
-            You'll be the owner of this organization and can invite team members.
-          </Text>
-          <Group justify="flex-end">
-            <Button variant="subtle" onClick={closeCreateModal}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleCreateOrg}
-              loading={isCreating}
-              disabled={!newOrgName.trim()}
-            >
-              Create Organization
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
+      {createModal}
     </>
   );
-}
+});

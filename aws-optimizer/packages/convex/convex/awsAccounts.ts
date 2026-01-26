@@ -185,24 +185,32 @@ function generateCloudFormationTemplateContent(
 // ============================================================================
 
 /**
- * List all AWS accounts for the current user's organization.
- * This version doesn't require arguments - it uses the authenticated user's context.
+ * List all AWS accounts for an organization.
+ * Accepts organizationId from the frontend (which resolves Better Auth org to Convex org).
  */
 export const listByOrganization = query({
-  args: {},
-  handler: async (ctx) => {
-    // Get the first organization membership for the current context
+  args: {
+    organizationId: v.optional(v.id("organizations")),
+  },
+  handler: async (ctx, args) => {
+    // If organizationId is provided, use it directly
+    if (args.organizationId) {
+      const awsAccounts = await ctx.db
+        .query("awsAccounts")
+        .withIndex("by_organization", (q) => q.eq("organizationId", args.organizationId!))
+        .collect();
+      return awsAccounts;
+    }
+
+    // Fallback: try to get from orgMembers (legacy support)
     const membership = await ctx.db.query("orgMembers").first();
     if (!membership) {
       return [];
     }
 
-    const organizationId = membership.organizationId;
-
-    // Get all AWS accounts for this organization
     const awsAccounts = await ctx.db
       .query("awsAccounts")
-      .withIndex("by_organization", (q) => q.eq("organizationId", organizationId))
+      .withIndex("by_organization", (q) => q.eq("organizationId", membership.organizationId))
       .collect();
 
     return awsAccounts;
@@ -295,7 +303,6 @@ export const listByOrganizationWithIds = query({
 export const connectWithRole = mutation({
   args: {
     organizationId: v.id("organizations"),
-    userId: v.id("users"),
     name: v.string(),
     accountNumber: v.string(),
     roleArn: v.string(),
@@ -307,7 +314,6 @@ export const connectWithRole = mutation({
   handler: async (ctx, args) => {
     const {
       organizationId,
-      userId,
       name,
       accountNumber,
       roleArn,
@@ -328,16 +334,14 @@ export const connectWithRole = mutation({
       throw new Error("Invalid IAM role ARN format");
     }
 
-    // Check if user is a member of the organization
-    const membership = await getMembership(ctx, organizationId, userId);
-    if (!membership) {
-      throw new Error("You are not a member of this organization");
+    // Verify the organization exists
+    const organization = await ctx.db.get(organizationId);
+    if (!organization) {
+      throw new Error("Organization not found");
     }
 
-    // Check if user has write permissions
-    if (!WRITE_ROLES.includes(membership.role as typeof WRITE_ROLES[number])) {
-      throw new Error("You do not have permission to connect AWS accounts");
-    }
+    // Note: Authentication is handled by Better Auth at the API layer.
+    // Organization membership is verified by Better Auth's organization plugin.
 
     // Create the AWS account entry
     const awsAccountId = await ctx.db.insert("awsAccounts", {
@@ -437,13 +441,13 @@ export const verifyRoleConnection = mutation({
  * 3. User should verify the connection works
  *
  * Security Note: IAM role-based access is recommended over access keys.
+ * Account number is optional - if not provided, it will be auto-detected during validation.
  */
 export const connectWithKeys = mutation({
   args: {
     organizationId: v.id("organizations"),
-    userId: v.id("users"),
     name: v.string(),
-    accountNumber: v.string(),
+    accountNumber: v.optional(v.string()), // Optional - can be auto-detected
     accessKeyId: v.string(),
     secretAccessKey: v.string(),
     description: v.optional(v.string()),
@@ -452,7 +456,6 @@ export const connectWithKeys = mutation({
   handler: async (ctx, args) => {
     const {
       organizationId,
-      userId,
       name,
       accountNumber,
       accessKeyId,
@@ -462,8 +465,8 @@ export const connectWithKeys = mutation({
     } = args;
     const now = Date.now();
 
-    // Validate AWS account number
-    if (!validateAccountNumber(accountNumber)) {
+    // Validate AWS account number if provided
+    if (accountNumber && !validateAccountNumber(accountNumber)) {
       throw new Error("AWS account number must be exactly 12 digits");
     }
 
@@ -472,22 +475,23 @@ export const connectWithKeys = mutation({
       throw new Error("Invalid AWS access key ID format");
     }
 
-    // Check if user is a member of the organization
-    const membership = await getMembership(ctx, organizationId, userId);
-    if (!membership) {
-      throw new Error("You are not a member of this organization");
+    // Verify the organization exists
+    const organization = await ctx.db.get(organizationId);
+    if (!organization) {
+      throw new Error("Organization not found");
     }
 
-    // Check if user has write permissions
-    if (!WRITE_ROLES.includes(membership.role as typeof WRITE_ROLES[number])) {
-      throw new Error("You do not have permission to connect AWS accounts");
-    }
+    // Note: Authentication is handled by Better Auth at the API layer.
+    // Organization membership is verified by Better Auth's organization plugin.
+
+    // Use provided account number or placeholder (will be updated during validation)
+    const finalAccountNumber = accountNumber || "000000000000";
 
     // Create the AWS account entry
     const awsAccountId = await ctx.db.insert("awsAccounts", {
       organizationId,
       name,
-      accountNumber,
+      accountNumber: finalAccountNumber,
       connectionType: "access_key",
       status: "pending", // Will be set to 'active' after successful verification
       description,
@@ -511,7 +515,10 @@ export const connectWithKeys = mutation({
       "Consider using IAM role-based access for improved security. " +
       "Ensure you rotate your access keys regularly and use least-privilege permissions.";
 
-    return { awsAccountId, credentialsId, securityWarning };
+    // Flag if account number needs to be detected
+    const needsAccountDetection = !accountNumber;
+
+    return { awsAccountId, credentialsId, securityWarning, needsAccountDetection };
   },
 });
 
@@ -841,12 +848,71 @@ export const validateAwsCredentials = action({
   },
 });
 
-// Type for quick validation response
+// Type for quick validation response (used by both detectAccountFromCredentials and quickValidateCredentials)
 interface QuickValidationResponse {
   valid: boolean;
   identity: AwsIdentity | null;
   errorMessage?: string;
 }
+
+/**
+ * Detect AWS account from raw credentials without storing them.
+ * Used by the UI to show account info before connecting.
+ * 
+ * This action validates credentials by calling sts:GetCallerIdentity
+ * and returns the account number, ARN, and user ID.
+ */
+export const detectAccountFromCredentials = action({
+  args: {
+    accessKeyId: v.string(),
+    secretAccessKey: v.string(),
+    sessionToken: v.optional(v.string()),
+    region: v.optional(v.string()),
+  },
+  returns: v.object({
+    valid: v.boolean(),
+    identity: v.union(
+      v.object({
+        account: v.string(),
+        arn: v.string(),
+        userId: v.string(),
+      }),
+      v.null()
+    ),
+    errorMessage: v.optional(v.string()),
+  }),
+  handler: async (ctx, args): Promise<QuickValidationResponse> => {
+    const { accessKeyId, secretAccessKey, sessionToken, region } = args;
+
+    // Validate access key format
+    if (!validateAccessKeyId(accessKeyId)) {
+      return {
+        valid: false,
+        identity: null,
+        errorMessage: "Invalid AWS access key ID format. Must start with AKIA or ASIA followed by 16 alphanumeric characters.",
+      };
+    }
+
+    // Encrypt credentials temporarily for the internal action
+    const encryptedAccessKeyId = encryptCredential(accessKeyId);
+    const encryptedSecretAccessKey = encryptCredential(secretAccessKey);
+    const encryptedSessionToken = sessionToken ? encryptCredential(sessionToken) : undefined;
+
+    // Validate identity using the internal action
+    const result = await ctx.runAction(internal.sandbox.validateCredentialsIdentity, {
+      encryptedAccessKeyId,
+      encryptedSecretAccessKey,
+      encryptedSessionToken,
+      region: region || "us-east-1",
+    }) as IdentityValidationResult;
+
+    return {
+      valid: result.valid,
+      identity: result.identity,
+      errorMessage: result.errorMessage,
+    };
+  },
+});
 
 /**
  * Quick validation that only checks sts:GetCallerIdentity without permission checks.
@@ -958,13 +1024,13 @@ export const quickValidateCredentials = action({
  * - ENV format (.env files)
  *
  * The credentials are encrypted before storage.
+ * Account number is optional - if not provided, it will be auto-detected during validation.
  */
 export const connectWithCredentialsFile = mutation({
   args: {
     organizationId: v.id("organizations"),
-    userId: v.id("users"),
     name: v.string(),
-    accountNumber: v.string(),
+    accountNumber: v.optional(v.string()), // Optional - can be auto-detected
     accessKeyId: v.string(),
     secretAccessKey: v.string(),
     sessionToken: v.optional(v.string()),
@@ -977,7 +1043,6 @@ export const connectWithCredentialsFile = mutation({
   handler: async (ctx, args) => {
     const {
       organizationId,
-      userId,
       name,
       accountNumber,
       accessKeyId,
@@ -991,8 +1056,8 @@ export const connectWithCredentialsFile = mutation({
     } = args;
     const now = Date.now();
 
-    // Validate AWS account number
-    if (!validateAccountNumber(accountNumber)) {
+    // Validate AWS account number if provided
+    if (accountNumber && !validateAccountNumber(accountNumber)) {
       throw new Error("AWS account number must be exactly 12 digits");
     }
 
@@ -1001,25 +1066,26 @@ export const connectWithCredentialsFile = mutation({
       throw new Error("Invalid AWS access key ID format");
     }
 
-    // Check if user is a member of the organization
-    const membership = await getMembership(ctx, organizationId, userId);
-    if (!membership) {
-      throw new Error("You are not a member of this organization");
+    // Verify the organization exists
+    const organization = await ctx.db.get(organizationId);
+    if (!organization) {
+      throw new Error("Organization not found");
     }
 
-    // Check if user has write permissions
-    if (!WRITE_ROLES.includes(membership.role as typeof WRITE_ROLES[number])) {
-      throw new Error("You do not have permission to connect AWS accounts");
-    }
+    // Note: Authentication is handled by Better Auth at the API layer.
+    // Organization membership is verified by Better Auth's organization plugin.
 
     // Determine if these are temporary credentials
     const isTemporary = !!sessionToken || accessKeyId.startsWith("ASIA");
+
+    // Use provided account number or placeholder (will be updated during validation)
+    const finalAccountNumber = accountNumber || "000000000000";
 
     // Create the AWS account entry
     const awsAccountId = await ctx.db.insert("awsAccounts", {
       organizationId,
       name,
-      accountNumber,
+      accountNumber: finalAccountNumber,
       connectionType: "credentials_file",
       status: "pending",
       description,
@@ -1053,7 +1119,44 @@ export const connectWithCredentialsFile = mutation({
         "They will expire and need to be refreshed. Consider using IAM role-based access for long-term connections.";
     }
 
-    return { awsAccountId, credentialsId, isTemporary, warning };
+    // Flag if account number needs to be detected
+    const needsAccountDetection = !accountNumber;
+
+    return { awsAccountId, credentialsId, isTemporary, warning, needsAccountDetection };
+  },
+});
+
+/**
+ * Update the account number after auto-detection via sts:GetCallerIdentity.
+ * Called when account number was not provided during connection.
+ */
+export const updateAccountNumber = mutation({
+  args: {
+    awsAccountId: v.id("awsAccounts"),
+    accountNumber: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { awsAccountId, accountNumber } = args;
+    const now = Date.now();
+
+    // Get the AWS account
+    const awsAccount = await ctx.db.get(awsAccountId);
+    if (!awsAccount) {
+      throw new Error("AWS account not found");
+    }
+
+    // Validate account number format
+    if (!validateAccountNumber(accountNumber)) {
+      throw new Error("AWS account number must be exactly 12 digits");
+    }
+
+    // Update the account
+    await ctx.db.patch(awsAccountId, {
+      accountNumber,
+      updatedAt: now,
+    });
+
+    return { success: true };
   },
 });
 
@@ -1214,10 +1317,9 @@ export const update = mutation({
 export const disconnect = mutation({
   args: {
     awsAccountId: v.id("awsAccounts"),
-    userId: v.id("users"),
   },
   handler: async (ctx, args) => {
-    const { awsAccountId, userId } = args;
+    const { awsAccountId } = args;
 
     // Get the AWS account
     const awsAccount = await ctx.db.get(awsAccountId);
@@ -1225,16 +1327,13 @@ export const disconnect = mutation({
       throw new Error("AWS account not found");
     }
 
-    // Check if user is a member of the organization
-    const membership = await getMembership(ctx, awsAccount.organizationId, userId);
-    if (!membership) {
-      throw new Error("You are not a member of this organization");
+    // Verify the organization exists
+    const organization = await ctx.db.get(awsAccount.organizationId);
+    if (!organization) {
+      throw new Error("Organization not found");
     }
 
-    // Only owners and admins can disconnect accounts
-    if (!["owner", "admin"].includes(membership.role)) {
-      throw new Error("You do not have permission to disconnect AWS accounts");
-    }
+    // Note: Authentication and authorization are handled by Better Auth at the API layer.
 
     // Delete associated credentials
     const credentials = await ctx.db

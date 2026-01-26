@@ -51,14 +51,18 @@ import {
   IconUser,
 } from "@tabler/icons-react";
 import { useQuery, useMutation, useAction } from "convex/react";
+import { observer } from "mobx-react-lite";
 import { useSession, IS_TEST_MODE } from "../lib/auth-client";
-import { useActiveOrganization } from "../hooks";
+import { useOrganization } from "../hooks/useOrganization";
 import { showSuccessToast, showErrorToast, showWarningToast } from "../lib/notifications";
 import { api } from "@aws-optimizer/convex/convex/_generated/api";
 import {
   parseCredentialsFile,
   getFormatDisplayName,
   isTemporaryCredentials,
+  isCredentialExpired,
+  getCredentialExpiryStatus,
+  formatExpiryTime,
   type ParsedCredential,
   type ParseResult,
 } from "../lib/credentials-parser";
@@ -166,20 +170,22 @@ function formatRelativeTime(timestamp: number): string {
   return `${days} day${days === 1 ? "" : "s"} ago`;
 }
 
-export function AccountsPage() {
+export const AccountsPage = observer(function AccountsPage() {
   const { data: session, isPending: isSessionPending } = useSession();
-  
+
   // Wait for authentication before executing queries
   const isAuthenticated = !isSessionPending && session !== null;
-  
-  // Get user ID from Better Auth session
-  const userId = session?.user?.id as Id<"users"> | undefined;
 
-  // Fetch active organization using custom hook
-  const { organization: activeOrganization, isLoading: isLoadingOrg } = useActiveOrganization(isAuthenticated);
+  // Use organization state from MobX store
+  const {
+    activeOrganization,
+    convexOrgId,
+    isLoading: isLoadingOrg,
+    isReady: isOrgReady,
+  } = useOrganization();
 
-  // Get organization ID from Better Auth active organization
-  const organizationId = activeOrganization?.id as Id<"organizations"> | undefined;
+  // Use the resolved Convex organization ID from the store
+  const organizationId = convexOrgId;
   const theme = useMantineTheme();
   const [connectModalOpened, { open: openConnectModal, close: closeConnectModal }] = useDisclosure(false);
   const [disconnectModalOpened, { open: openDisconnectModal, close: closeDisconnectModal }] = useDisclosure(false);
@@ -236,14 +242,35 @@ export function AccountsPage() {
   const [orgDiscoveryStep, setOrgDiscoveryStep] = useState(0);
   const [selectedAccountIds, setSelectedAccountIds] = useState<Set<string>>(new Set());
 
+  // Account detection state (for Access Key tab)
+  const [keyDetectionLoading, setKeyDetectionLoading] = useState(false);
+  const [keyDetectedAccount, setKeyDetectedAccount] = useState<{
+    account: string;
+    arn: string;
+    userId: string;
+  } | null>(null);
+  const [keyDetectionError, setKeyDetectionError] = useState<string | null>(null);
+
+  // Account detection state (for Upload File tab)
+  const [fileDetectionLoading, setFileDetectionLoading] = useState(false);
+  const [fileDetectedAccount, setFileDetectedAccount] = useState<{
+    account: string;
+    arn: string;
+    userId: string;
+  } | null>(null);
+  const [fileDetectionError, setFileDetectionError] = useState<string | null>(null);
+
   // Generate a unique external ID for new connections
   const generatedExternalId = useMemo(() => {
     return `costopt-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
   }, []);
 
   // Convex queries and mutations
-  // Fetch data - these APIs work without arguments, they get org from auth context
-  const accountsData = useQuery(api.awsAccounts.listByOrganization);
+  // Fetch data - pass organizationId to get accounts for the current org
+  const accountsData = useQuery(
+    api.awsAccounts.listByOrganization,
+    convexOrgId ? { organizationId: convexOrgId } : "skip"
+  );
   const accounts = accountsData as AwsAccount[] | undefined;
   const cfTemplate = useQuery(api.awsAccounts.generateCloudFormationTemplate, {
     externalId: iamFormData.externalId || generatedExternalId,
@@ -252,8 +279,10 @@ export function AccountsPage() {
   const connectWithRole = useMutation(api.awsAccounts.connectWithRole);
   const connectWithKeys = useMutation(api.awsAccounts.connectWithKeys);
   const connectWithCredentialsFile = useMutation(api.awsAccounts.connectWithCredentialsFile);
+  const updateAccountNumber = useMutation(api.awsAccounts.updateAccountNumber);
   const disconnect = useMutation(api.awsAccounts.disconnect);
   const validateCredentials = useAction(api.awsAccounts.validateAwsCredentials);
+  const detectAccount = useAction(api.awsAccounts.detectAccountFromCredentials);
 
   // AWS Organizations discovery
   const startDiscovery = useMutation(api.awsOrganizations.startDiscovery);
@@ -328,16 +357,11 @@ export function AccountsPage() {
 
   const handleConfirmDisconnect = async () => {
     if (!selectedAccount) return;
-    if (!userId) {
-      showErrorToast("User not found. Please try again.");
-      return;
-    }
 
     setIsLoading(true);
     try {
       await disconnect({
         awsAccountId: selectedAccount._id as Id<"awsAccounts">,
-        userId,
       });
       closeDisconnectModal();
       setSelectedAccount(null);
@@ -352,13 +376,22 @@ export function AccountsPage() {
   const handleConnectWithRole = async () => {
     setIsLoading(true);
     try {
-      if (!organizationId || !userId) {
-        showErrorToast("Organization or user not found. Please try again.");
+      // In test mode, show mock success since we can't call the backend with test IDs
+      if (IS_TEST_MODE) {
+        showSuccessToast("[Test Mode] AWS account would be connected via IAM Role");
+        showWarningToast("Test mode: No actual connection made. Use real authentication to connect accounts.");
+        closeConnectModal();
+        resetForms();
+        setIsLoading(false);
+        return;
+      }
+
+      if (!organizationId) {
+        showErrorToast("Organization not found. Please try again.");
         return;
       }
       await connectWithRole({
         organizationId,
-        userId,
         name: iamFormData.name,
         accountNumber: iamFormData.accountNumber,
         roleArn: iamFormData.roleArn,
@@ -376,25 +409,81 @@ export function AccountsPage() {
     }
   };
 
+  // Handle detecting account from access keys
+  const handleDetectAccountFromKeys = async () => {
+    if (!keyFormData.accessKeyId || !keyFormData.secretAccessKey) {
+      showErrorToast("Please enter both Access Key ID and Secret Access Key");
+      return;
+    }
+
+    setKeyDetectionLoading(true);
+    setKeyDetectionError(null);
+    setKeyDetectedAccount(null);
+
+    try {
+      const result = await detectAccount({
+        accessKeyId: keyFormData.accessKeyId,
+        secretAccessKey: keyFormData.secretAccessKey,
+        region: keyFormData.region || undefined,
+      });
+
+      if (result.valid && result.identity) {
+        setKeyDetectedAccount(result.identity);
+        // Auto-fill the account number
+        setKeyFormData((prev) => ({
+          ...prev,
+          accountNumber: result.identity!.account,
+        }));
+        showSuccessToast(`Detected AWS account: ${result.identity.account}`);
+      } else {
+        setKeyDetectionError(result.errorMessage || "Failed to detect account");
+        showErrorToast(result.errorMessage || "Failed to detect account");
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to detect account";
+      setKeyDetectionError(errorMessage);
+      showErrorToast(errorMessage);
+    } finally {
+      setKeyDetectionLoading(false);
+    }
+  };
+
   const handleConnectWithKeys = async () => {
     setIsLoading(true);
     try {
-      if (!organizationId || !userId) {
-        showErrorToast("Organization or user not found. Please try again.");
+      // In test mode, show mock success since we can't call the backend with test IDs
+      if (IS_TEST_MODE) {
+        showSuccessToast(
+          keyDetectedAccount
+            ? `[Test Mode] AWS account ${keyDetectedAccount.account} would be connected`
+            : "[Test Mode] AWS account would be connected"
+        );
+        showWarningToast("Test mode: No actual connection made. Use real authentication to connect accounts.");
+        closeConnectModal();
+        resetForms();
+        setIsLoading(false);
         return;
       }
+
+      if (!organizationId) {
+        showErrorToast("Organization not found. Please try again.");
+        return;
+      }
+
+      // Account number is now optional - pass undefined if empty
+      const accountNumberToUse = keyFormData.accountNumber.trim() || undefined;
+
       const result = await connectWithKeys({
         organizationId,
-        userId,
         name: keyFormData.name,
-        accountNumber: keyFormData.accountNumber,
+        accountNumber: accountNumberToUse,
         accessKeyId: keyFormData.accessKeyId,
         secretAccessKey: keyFormData.secretAccessKey,
         description: keyFormData.description || undefined,
         region: keyFormData.region || undefined,
       });
 
-      // Validate credentials after connecting
+      // Validate credentials after connecting - this also auto-detects account number
       try {
         const validation = await validateCredentials({
           awsAccountId: result.awsAccountId,
@@ -402,7 +491,18 @@ export function AccountsPage() {
         });
 
         if (validation.success) {
-          showSuccessToast("AWS account connected and verified successfully");
+          // If account number was auto-detected, update it
+          if (result.needsAccountDetection && validation.identity?.account) {
+            await updateAccountNumber({
+              awsAccountId: result.awsAccountId,
+              accountNumber: validation.identity.account,
+            });
+          }
+          showSuccessToast(
+            result.needsAccountDetection && validation.identity?.account
+              ? `AWS account ${validation.identity.account} connected and verified successfully`
+              : "AWS account connected and verified successfully"
+          );
           if (validation.permissions.some((p) => !p.granted)) {
             showWarningToast(
               "Credentials valid but some permissions are missing. Cost analysis may be limited."
@@ -490,6 +590,9 @@ export function AccountsPage() {
     setUploadedFile(null);
     setParseResult(null);
     setSelectedProfile(null);
+    // Clear file detection states
+    setFileDetectedAccount(null);
+    setFileDetectionError(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -498,6 +601,60 @@ export function AccountsPage() {
   const getSelectedCredential = (): ParsedCredential | null => {
     if (!parseResult?.success || !selectedProfile) return null;
     return parseResult.profiles.find((p) => p.profileName === selectedProfile) || null;
+  };
+
+  // Check if selected credential is expired
+  const isSelectedCredentialExpired = (): boolean => {
+    const cred = getSelectedCredential();
+    if (!cred) return false;
+    return isCredentialExpired(cred);
+  };
+
+  // Handle detecting account from uploaded credentials file
+  const handleDetectAccountFromFile = async () => {
+    const credential = getSelectedCredential();
+    if (!credential) {
+      showErrorToast("Please select a credential profile first");
+      return;
+    }
+
+    // Check if credentials are expired
+    if (isCredentialExpired(credential)) {
+      showErrorToast("These credentials have expired. Please use fresh credentials.");
+      return;
+    }
+
+    setFileDetectionLoading(true);
+    setFileDetectionError(null);
+    setFileDetectedAccount(null);
+
+    try {
+      const result = await detectAccount({
+        accessKeyId: credential.accessKeyId,
+        secretAccessKey: credential.secretAccessKey,
+        sessionToken: credential.sessionToken,
+        region: fileFormData.region || credential.region || undefined,
+      });
+
+      if (result.valid && result.identity) {
+        setFileDetectedAccount(result.identity);
+        // Auto-fill the account number
+        setFileFormData((prev) => ({
+          ...prev,
+          accountNumber: result.identity!.account,
+        }));
+        showSuccessToast(`Detected AWS account: ${result.identity.account}`);
+      } else {
+        setFileDetectionError(result.errorMessage || "Failed to detect account");
+        showErrorToast(result.errorMessage || "Failed to detect account");
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to detect account";
+      setFileDetectionError(errorMessage);
+      showErrorToast(errorMessage);
+    } finally {
+      setFileDetectionLoading(false);
+    }
   };
 
   const handleConnectWithCredentialsFile = async () => {
@@ -509,15 +666,32 @@ export function AccountsPage() {
 
     setIsLoading(true);
     try {
-      if (!organizationId || !userId) {
-        showErrorToast("Organization or user not found. Please try again.");
+      // In test mode, show mock success since we can't call the backend with test IDs
+      if (IS_TEST_MODE) {
+        showSuccessToast(
+          fileDetectedAccount
+            ? `[Test Mode] AWS account ${fileDetectedAccount.account} would be connected`
+            : "[Test Mode] AWS account would be connected"
+        );
+        showWarningToast("Test mode: No actual connection made. Use real authentication to connect accounts.");
+        closeConnectModal();
+        resetForms();
+        setIsLoading(false);
         return;
       }
+
+      if (!organizationId) {
+        showErrorToast("Organization not found. Please try again.");
+        return;
+      }
+
+      // Account number is now optional - pass undefined if empty
+      const accountNumberToUse = fileFormData.accountNumber.trim() || undefined;
+
       const result = await connectWithCredentialsFile({
         organizationId,
-        userId,
         name: fileFormData.name,
-        accountNumber: fileFormData.accountNumber,
+        accountNumber: accountNumberToUse,
         accessKeyId: credential.accessKeyId,
         secretAccessKey: credential.secretAccessKey,
         sessionToken: credential.sessionToken,
@@ -528,7 +702,7 @@ export function AccountsPage() {
         expiresAt: credential.expiresAt,
       });
 
-      // Validate credentials after connecting
+      // Validate credentials after connecting - this also auto-detects account number
       try {
         const validation = await validateCredentials({
           awsAccountId: result.awsAccountId,
@@ -536,7 +710,18 @@ export function AccountsPage() {
         });
 
         if (validation.success) {
-          showSuccessToast("AWS account connected and verified successfully");
+          // If account number was auto-detected, update it
+          if (result.needsAccountDetection && validation.identity?.account) {
+            await updateAccountNumber({
+              awsAccountId: result.awsAccountId,
+              accountNumber: validation.identity.account,
+            });
+          }
+          showSuccessToast(
+            result.needsAccountDetection && validation.identity?.account
+              ? `AWS account ${validation.identity.account} connected and verified successfully`
+              : "AWS account connected and verified successfully"
+          );
           if (validation.permissions.some((p) => !p.granted)) {
             showWarningToast(
               "Credentials valid but some permissions are missing. Cost analysis may be limited."
@@ -598,19 +783,23 @@ export function AccountsPage() {
     setOrgDiscoveryStep(0);
     setSelectedAccountIds(new Set());
     clearUploadedFile();
+    // Reset detection states
+    setKeyDetectedAccount(null);
+    setKeyDetectionError(null);
+    setFileDetectedAccount(null);
+    setFileDetectionError(null);
   };
 
   // AWS Organizations discovery handlers
   const handleStartDiscovery = async () => {
-    if (!organizationId || !userId) {
-      showErrorToast("Organization or user not found. Please try again.");
+    if (!organizationId) {
+      showErrorToast("Organization not found. Please try again.");
       return;
     }
     setIsLoading(true);
     try {
       const result = await startDiscovery({
         organizationId,
-        userId,
         managementAccountNumber: orgFormData.managementAccountNumber,
         accessKeyId: orgFormData.accessKeyId,
         secretAccessKey: orgFormData.secretAccessKey,
@@ -666,10 +855,6 @@ export function AccountsPage() {
     if (!currentDiscovery) return;
     setIsLoading(true);
     try {
-      if (!userId) {
-        showErrorToast("User not found. Please try again.");
-        return;
-      }
       const selections = (discoveredAccounts || []).map((account) => ({
         accountId: account._id as Id<"discoveredAwsAccounts">,
         selected: selectedAccountIds.has(account._id),
@@ -677,7 +862,6 @@ export function AccountsPage() {
 
       await updateAccountSelections({
         discoveryId: currentDiscovery._id as Id<"awsOrgDiscoveries">,
-        userId,
         selections,
       });
 
@@ -766,8 +950,8 @@ export function AccountsPage() {
 
   const accountList = accounts || [];
 
-  // Show loading state while waiting for authentication or organization
-  if (isSessionPending || (isAuthenticated && isLoadingOrg)) {
+  // Show loading state while waiting for authentication, organization, or org resolution
+  if (isSessionPending || (isAuthenticated && !isOrgReady)) {
     return (
       <Center h="calc(100vh - 120px)" data-testid="accounts-page-loading">
         <Stack align="center" gap="md">
@@ -1382,8 +1566,8 @@ export function AccountsPage() {
             <Stack gap="md">
               <Alert color="blue" icon={<IconUpload size={16} />}>
                 <Text size="sm">
-                  Upload your AWS credentials file or paste credentials in JSON/ENV format.
-                  Supports ~/.aws/credentials (INI), JSON exports, and .env files.
+                  Upload your AWS credentials file or paste credentials in JSON/ENV/CSV format.
+                  Supports ~/.aws/credentials (INI), JSON exports, .env files, and CSV exports from AWS Console.
                 </Text>
               </Alert>
 
@@ -1392,7 +1576,7 @@ export function AccountsPage() {
                 type="file"
                 ref={fileInputRef}
                 onChange={handleFileInput}
-                accept=".txt,.ini,.json,.env,text/plain,application/json"
+                accept=".txt,.ini,.json,.env,.csv,text/plain,application/json,text/csv"
                 style={{ display: "none" }}
               />
 
@@ -1422,7 +1606,7 @@ export function AccountsPage() {
                       or click to browse
                     </Text>
                     <Text size="xs" c="dimmed">
-                      Supports: credentials, .json, .env files
+                      Supports: credentials, .json, .env, .csv files
                     </Text>
                   </Stack>
                 </Box>
@@ -1467,7 +1651,15 @@ export function AccountsPage() {
                       label: `${p.profileName}${isTemporaryCredentials(p) ? " (temporary)" : ""}`,
                     }))}
                     value={selectedProfile}
-                    onChange={setSelectedProfile}
+                    onChange={(value) => {
+                      setSelectedProfile(value);
+                      // Clear detection when profile changes
+                      if (fileDetectedAccount) {
+                        setFileDetectedAccount(null);
+                        setFileDetectionError(null);
+                        setFileFormData((prev) => ({ ...prev, accountNumber: "" }));
+                      }
+                    }}
                     required
                   />
 
@@ -1475,6 +1667,8 @@ export function AccountsPage() {
                   {selectedProfile && (() => {
                     const cred = getSelectedCredential();
                     if (!cred) return null;
+
+                    const expiryStatus = getCredentialExpiryStatus(cred);
 
                     return (
                       <Paper withBorder p="sm">
@@ -1489,12 +1683,29 @@ export function AccountsPage() {
                               <Code>{cred.region}</Code>
                             </Group>
                           )}
-                          {isTemporaryCredentials(cred) && (
+                          {isTemporaryCredentials(cred) && expiryStatus.status !== "expired" && expiryStatus.status !== "expiring_soon" && (
                             <Alert color="yellow" variant="light" icon={<IconClock size={14} />} p="xs">
                               <Text size="xs">These are temporary credentials with a session token.</Text>
                             </Alert>
                           )}
-                          {cred.expiresAt && (
+                          {/* Expiry warnings */}
+                          {expiryStatus.status === "expired" && (
+                            <Alert color="red" variant="filled" icon={<IconAlertCircle size={14} />} p="xs">
+                              <Text size="xs" fw={500}>
+                                These credentials have expired ({formatExpiryTime(expiryStatus.expiresAt)}). 
+                                You cannot connect with expired credentials.
+                              </Text>
+                            </Alert>
+                          )}
+                          {expiryStatus.status === "expiring_soon" && (
+                            <Alert color="orange" variant="light" icon={<IconClock size={14} />} p="xs">
+                              <Text size="xs" fw={500}>
+                                Warning: {formatExpiryTime(expiryStatus.expiresAt)}. 
+                                Consider refreshing your credentials before connecting.
+                              </Text>
+                            </Alert>
+                          )}
+                          {expiryStatus.status === "valid" && cred.expiresAt && (
                             <Group justify="space-between">
                               <Text size="sm" c="dimmed">Expires:</Text>
                               <Text size="sm">{new Date(cred.expiresAt).toLocaleString()}</Text>
@@ -1504,6 +1715,56 @@ export function AccountsPage() {
                       </Paper>
                     );
                   })()}
+
+                  {/* Detect Account Button - only show if credentials aren't expired */}
+                  {selectedProfile && !isSelectedCredentialExpired() && (
+                    <>
+                      <Divider label="Verify Credentials" labelPosition="left" />
+
+                      <Group align="flex-start">
+                        <Button
+                          variant="light"
+                          leftSection={<IconSearch size={16} />}
+                          onClick={handleDetectAccountFromFile}
+                          loading={fileDetectionLoading}
+                        >
+                          Detect Account
+                        </Button>
+                        <Text size="xs" c="dimmed" style={{ flex: 1 }}>
+                          Validates your credentials and detects the AWS account number
+                        </Text>
+                      </Group>
+
+                      {/* Detection Error */}
+                      {fileDetectionError && (
+                        <Alert color="red" icon={<IconAlertCircle size={16} />}>
+                          {fileDetectionError}
+                        </Alert>
+                      )}
+
+                      {/* Detected Account Info */}
+                      {fileDetectedAccount && (
+                        <Paper withBorder p="sm" bg="green.0">
+                          <Group gap="sm">
+                            <IconCheck size={20} color="var(--mantine-color-green-6)" />
+                            <Stack gap={4} style={{ flex: 1 }}>
+                              <Text size="sm" fw={500} c="green.8">
+                                Credentials verified successfully!
+                              </Text>
+                              <Group gap="xs">
+                                <Text size="sm" c="dimmed">Account:</Text>
+                                <Code>{fileDetectedAccount.account}</Code>
+                              </Group>
+                              <Group gap="xs">
+                                <Text size="sm" c="dimmed">ARN:</Text>
+                                <Code style={{ fontSize: "0.75rem" }}>{fileDetectedAccount.arn}</Code>
+                              </Group>
+                            </Stack>
+                          </Group>
+                        </Paper>
+                      )}
+                    </>
+                  )}
 
                   <Divider label="Account Details" labelPosition="left" />
 
@@ -1515,15 +1776,20 @@ export function AccountsPage() {
                     onChange={(e) => setFileFormData({ ...fileFormData, name: e.target.value })}
                   />
 
+                  {/* Account Number Field - shown as read-only when detected */}
                   <TextInput
                     label="Account Number"
-                    placeholder="123456789012"
-                    required
+                    placeholder={fileDetectedAccount ? "Detected from credentials" : "Auto-detected from credentials"}
+                    description={fileDetectedAccount 
+                      ? "Automatically detected from your credentials" 
+                      : "Click 'Detect Account' to auto-fill, or enter manually"
+                    }
                     maxLength={12}
                     value={fileFormData.accountNumber}
                     onChange={(e) =>
                       setFileFormData({ ...fileFormData, accountNumber: e.target.value.replace(/\D/g, "") })
                     }
+                    rightSection={fileDetectedAccount && <IconCheck size={16} color="var(--mantine-color-green-6)" />}
                   />
 
                   <TextInput
@@ -1546,7 +1812,7 @@ export function AccountsPage() {
                     !parseResult?.success ||
                     !selectedProfile ||
                     !fileFormData.name ||
-                    !fileFormData.accountNumber
+                    isSelectedCredentialExpired()
                   }
                 >
                   Connect
@@ -1574,22 +1840,18 @@ export function AccountsPage() {
               />
 
               <TextInput
-                label="Account Number"
-                placeholder="123456789012"
-                required
-                maxLength={12}
-                value={keyFormData.accountNumber}
-                onChange={(e) =>
-                  setKeyFormData({ ...keyFormData, accountNumber: e.target.value.replace(/\D/g, "") })
-                }
-              />
-
-              <TextInput
                 label="Access Key ID"
                 placeholder="AKIAIOSFODNN7EXAMPLE"
                 required
                 value={keyFormData.accessKeyId}
-                onChange={(e) => setKeyFormData({ ...keyFormData, accessKeyId: e.target.value })}
+                onChange={(e) => {
+                  setKeyFormData({ ...keyFormData, accessKeyId: e.target.value });
+                  // Clear detection when credentials change
+                  if (keyDetectedAccount) {
+                    setKeyDetectedAccount(null);
+                    setKeyDetectionError(null);
+                  }
+                }}
               />
 
               <TextInput
@@ -1598,9 +1860,14 @@ export function AccountsPage() {
                 required
                 type="password"
                 value={keyFormData.secretAccessKey}
-                onChange={(e) =>
-                  setKeyFormData({ ...keyFormData, secretAccessKey: e.target.value })
-                }
+                onChange={(e) => {
+                  setKeyFormData({ ...keyFormData, secretAccessKey: e.target.value });
+                  // Clear detection when credentials change
+                  if (keyDetectedAccount) {
+                    setKeyDetectedAccount(null);
+                    setKeyDetectionError(null);
+                  }
+                }}
               />
 
               <TextInput
@@ -1608,6 +1875,69 @@ export function AccountsPage() {
                 placeholder="us-east-1"
                 value={keyFormData.region}
                 onChange={(e) => setKeyFormData({ ...keyFormData, region: e.target.value })}
+              />
+
+              {/* Detect Account Button */}
+              <Divider label="Verify Credentials" labelPosition="left" />
+
+              <Group align="flex-start">
+                <Button
+                  variant="light"
+                  leftSection={<IconSearch size={16} />}
+                  onClick={handleDetectAccountFromKeys}
+                  loading={keyDetectionLoading}
+                  disabled={!keyFormData.accessKeyId || !keyFormData.secretAccessKey}
+                >
+                  Detect Account
+                </Button>
+                <Text size="xs" c="dimmed" style={{ flex: 1 }}>
+                  Validates your credentials and detects the AWS account number
+                </Text>
+              </Group>
+
+              {/* Detection Error */}
+              {keyDetectionError && (
+                <Alert color="red" icon={<IconAlertCircle size={16} />}>
+                  {keyDetectionError}
+                </Alert>
+              )}
+
+              {/* Detected Account Info */}
+              {keyDetectedAccount && (
+                <Paper withBorder p="sm" bg="green.0">
+                  <Group gap="sm">
+                    <IconCheck size={20} color="var(--mantine-color-green-6)" />
+                    <Stack gap={4} style={{ flex: 1 }}>
+                      <Text size="sm" fw={500} c="green.8">
+                        Credentials verified successfully!
+                      </Text>
+                      <Group gap="xs">
+                        <Text size="sm" c="dimmed">Account:</Text>
+                        <Code>{keyDetectedAccount.account}</Code>
+                      </Group>
+                      <Group gap="xs">
+                        <Text size="sm" c="dimmed">ARN:</Text>
+                        <Code style={{ fontSize: "0.75rem" }}>{keyDetectedAccount.arn}</Code>
+                      </Group>
+                    </Stack>
+                  </Group>
+                </Paper>
+              )}
+
+              {/* Account Number Field - shown as read-only when detected */}
+              <TextInput
+                label="Account Number"
+                placeholder={keyDetectedAccount ? "Detected from credentials" : "Auto-detected from credentials"}
+                description={keyDetectedAccount 
+                  ? "Automatically detected from your credentials" 
+                  : "Click 'Detect Account' to auto-fill, or enter manually"
+                }
+                maxLength={12}
+                value={keyFormData.accountNumber}
+                onChange={(e) =>
+                  setKeyFormData({ ...keyFormData, accountNumber: e.target.value.replace(/\D/g, "") })
+                }
+                rightSection={keyDetectedAccount && <IconCheck size={16} color="var(--mantine-color-green-6)" />}
               />
 
               <Group justify="flex-end" mt="md">
@@ -1619,7 +1949,6 @@ export function AccountsPage() {
                   loading={isLoading}
                   disabled={
                     !keyFormData.name ||
-                    !keyFormData.accountNumber ||
                     !keyFormData.accessKeyId ||
                     !keyFormData.secretAccessKey
                   }
@@ -1664,6 +1993,6 @@ export function AccountsPage() {
       </Modal>
     </Container>
   );
-}
+});
 
 export default AccountsPage;

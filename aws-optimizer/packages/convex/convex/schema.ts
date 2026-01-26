@@ -158,6 +158,9 @@ export default defineSchema({
     name: v.string(),
     slug: v.string(), // URL-friendly unique identifier
 
+    // Better Auth integration - maps Better Auth org ID to Convex org
+    betterAuthOrgId: v.optional(v.string()),
+
     // Subscription/billing
     plan: planValidator,
 
@@ -180,7 +183,8 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_slug", ["slug"])
-    .index("by_plan", ["plan"]),
+    .index("by_plan", ["plan"])
+    .index("by_betterAuthOrgId", ["betterAuthOrgId"]),
 
   // ============================================================================
   // ORGANIZATION INVITATIONS

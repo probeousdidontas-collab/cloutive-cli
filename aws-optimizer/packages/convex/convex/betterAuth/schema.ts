@@ -77,7 +77,7 @@ export const tables = {
     logo: v.optional(v.union(v.null(), v.string())),
     metadata: v.optional(v.union(v.null(), v.string())), // JSON string for additional data
     createdAt: v.number(),
-    updatedAt: v.number(),
+    updatedAt: v.optional(v.number()), // Optional on creation, set on updates
   })
     .index("slug", ["slug"])
     .index("name", ["name"]),
@@ -88,7 +88,7 @@ export const tables = {
     userId: v.string(),
     role: v.string(), // owner, admin, member, or custom roles
     createdAt: v.number(),
-    updatedAt: v.number(),
+    updatedAt: v.optional(v.number()), // Optional on creation, set on updates
   })
     .index("organizationId", ["organizationId"])
     .index("userId", ["userId"])
@@ -103,7 +103,7 @@ export const tables = {
     inviterId: v.string(), // User who sent the invitation
     expiresAt: v.number(),
     createdAt: v.number(),
-    updatedAt: v.number(),
+    updatedAt: v.optional(v.number()), // Optional on creation, set on updates
   })
     .index("organizationId", ["organizationId"])
     .index("email", ["email"])

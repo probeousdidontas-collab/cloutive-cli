@@ -17,9 +17,11 @@
   // Container configuration - builds from local Dockerfile
   "containers": [
     {
-      "name": "SANDBOX",
+      "name": "sandbox",
       "class_name": "Sandbox",
       "image": "./Dockerfile",
+      "instance_type": "basic",
+      "disk_size_gb": 4,
       "max_instances": 1
     }
   ],
@@ -36,12 +38,22 @@
   "env": {
     "production": {
       "name": "aws-optimizer-sandbox-prod",
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "Sandbox",
+            "class_name": "Sandbox"
+          }
+        ]
+      },
       // Container scaling for production
       "containers": [
         {
-          "name": "SANDBOX",
+          "name": "sandbox",
           "class_name": "Sandbox",
           "image": "./Dockerfile",
+          "instance_type": "basic",
+          "disk_size_gb": 4,
           "max_instances": 5
         }
       ],
@@ -58,11 +70,21 @@
     },
     "staging": {
       "name": "aws-optimizer-sandbox-staging",
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "Sandbox",
+            "class_name": "Sandbox"
+          }
+        ]
+      },
       "containers": [
         {
-          "name": "SANDBOX",
+          "name": "sandbox",
           "class_name": "Sandbox",
           "image": "./Dockerfile",
+          "instance_type": "basic",
+          "disk_size_gb": 4,
           "max_instances": 2
         }
       ],

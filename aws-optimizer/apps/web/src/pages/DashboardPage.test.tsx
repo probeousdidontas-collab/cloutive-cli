@@ -189,7 +189,7 @@ vi.mock("convex/react", () => ({
   }),
 }));
 
-// Mock auth client
+// Mock auth client with organizationMethods
 vi.mock("../lib/auth-client", () => ({
   useSession: () => ({
     data: {
@@ -200,6 +200,55 @@ vi.mock("../lib/auth-client", () => ({
       },
     },
     isPending: false,
+  }),
+  IS_TEST_MODE: true,
+  organizationMethods: {
+    list: vi.fn().mockResolvedValue({
+      data: [{ id: "test-org-id", name: "Test Organization", slug: "test-org", role: "owner" }],
+      error: null,
+    }),
+    getActive: vi.fn().mockResolvedValue({
+      data: { id: "test-org-id", name: "Test Organization", slug: "test-org" },
+      error: null,
+    }),
+    setActive: vi.fn().mockResolvedValue({ data: { organizationId: "test-org-id" }, error: null }),
+    create: vi.fn().mockResolvedValue({ data: { id: "new-org-id", name: "New Org" }, error: null }),
+    update: vi.fn().mockResolvedValue({ data: { id: "test-org-id", name: "Updated Org" }, error: null }),
+  },
+}));
+
+// Mock useOrganization hook - DashboardPage uses this now
+vi.mock("../hooks/useOrganization", () => ({
+  useOrganization: () => ({
+    activeOrganization: { id: "test-org-id", name: "Test Organization", slug: "test-org", role: "owner" },
+    organizations: [{ id: "test-org-id", name: "Test Organization", slug: "test-org", role: "owner" }],
+    convexOrgId: "test-org-id",
+    isLoading: false,
+    isSwitching: false,
+    isReady: true,
+    error: null,
+    switchOrganization: vi.fn().mockResolvedValue(true),
+    createOrganization: vi.fn().mockResolvedValue(true),
+    refresh: vi.fn().mockResolvedValue(undefined),
+  }),
+}));
+
+// Mock useStores hook for MobX
+vi.mock("../stores/useStores", () => ({
+  useStores: () => ({
+    sidebarOpen: true,
+    toggleSidebar: vi.fn(),
+    organizationStore: {
+      activeOrganization: { id: "test-org-id", name: "Test Organization", slug: "test-org", role: "owner" },
+      organizations: [{ id: "test-org-id", name: "Test Organization", slug: "test-org", role: "owner" }],
+      convexOrgId: "test-org-id",
+      isLoading: false,
+      isSwitching: false,
+      isResolvingConvexId: false,
+      isReady: true,
+      hasInitialized: true,
+      error: null,
+    },
   }),
 }));
 
@@ -356,6 +405,8 @@ describe("DashboardPage Route Integration", () => {
   test("DashboardPage should be exported from pages index", async () => {
     const pages = await import("./index");
     expect(pages.DashboardPage).toBeDefined();
-    expect(typeof pages.DashboardPage).toBe("function");
+    // observer() wrapped components are callable (usable as React components)
+    // but typeof may return "object" for forwardRef components
+    expect(typeof pages.DashboardPage === "function" || typeof pages.DashboardPage === "object").toBe(true);
   });
 });

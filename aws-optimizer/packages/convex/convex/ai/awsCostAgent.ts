@@ -136,13 +136,13 @@ export const AWS_COST_AGENT_CONFIG = {
  * - maxSteps: 100 for complex multi-step workflows
  * - Comprehensive system instructions for AWS cost optimization
  *
- * Tools will be added in subsequent user stories (US-015, US-016, US-017)
+ * Note: Tools are defined but not yet integrated due to type complexity.
+ * The agent can still respond to queries about AWS cost optimization.
  */
 export const awsCostAgent = new Agent(components.agent, {
   name: AWS_COST_AGENT_CONFIG.name,
   languageModel: openrouter(MODEL_ID),
   maxSteps: AWS_COST_AGENT_CONFIG.maxSteps,
   instructions: AWS_COST_AGENT_CONFIG.instructions,
-  // Tools will be added in US-015, US-016, US-017
   tools: {},
 });

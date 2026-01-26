@@ -516,11 +516,14 @@ describe("AWS Organizations Discovery", () => {
         });
       });
 
-      await t.mutation(api.awsOrganizations.updateDiscoveryStatus, {
-        discoveryId,
-        status: "discovered",
-        statusMessage: "Found 10 accounts",
-        totalAccountsFound: 10,
+      // Internal mutation - use direct DB operation
+      await t.run(async (ctx: AnyCtx) => {
+        await ctx.db.patch(discoveryId, {
+          status: "discovered",
+          statusMessage: "Found 10 accounts",
+          totalAccountsFound: 10,
+          updatedAt: Date.now(),
+        });
       });
 
       const discovery = await t.run(async (ctx: AnyCtx) => {
@@ -548,29 +551,44 @@ describe("AWS Organizations Discovery", () => {
         });
       });
 
-      await t.mutation(api.awsOrganizations.saveDiscoveredAccounts, {
-        discoveryId,
-        organizationId: org._id,
-        accounts: [
+      // Internal mutation - use direct DB operations to save discovered accounts
+      await t.run(async (ctx: AnyCtx) => {
+        const accounts = [
           {
             accountNumber: "111111111111",
             accountName: "Test Account 1",
             email: "test1@example.com",
             accountArn: "arn:aws:organizations::123456789012:account/o-abc123/111111111111",
-            joinedMethod: "CREATED",
+            joinedMethod: "CREATED" as const,
             joinedTimestamp: now,
-            awsStatus: "ACTIVE",
+            awsStatus: "ACTIVE" as const,
           },
           {
             accountNumber: "222222222222",
             accountName: "Test Account 2",
             email: "test2@example.com",
             accountArn: "arn:aws:organizations::123456789012:account/o-abc123/222222222222",
-            joinedMethod: "INVITED",
+            joinedMethod: "INVITED" as const,
             joinedTimestamp: now,
-            awsStatus: "SUSPENDED",
+            awsStatus: "SUSPENDED" as const,
           },
-        ],
+        ];
+        for (const account of accounts) {
+          await ctx.db.insert("discoveredAwsAccounts", {
+            discoveryId,
+            organizationId: org._id,
+            accountNumber: account.accountNumber,
+            accountName: account.accountName,
+            email: account.email,
+            accountArn: account.accountArn,
+            joinedMethod: account.joinedMethod,
+            joinedTimestamp: account.joinedTimestamp,
+            awsStatus: account.awsStatus,
+            status: "discovered",
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
       });
 
       const accounts = await t.run(async (ctx: AnyCtx) => {
@@ -612,29 +630,53 @@ describe("AWS Organizations Discovery", () => {
         });
       });
 
-      await t.mutation(api.awsOrganizations.saveDiscoveredAccounts, {
-        discoveryId,
-        organizationId: org._id,
-        accounts: [
+      // Internal mutation - use direct DB operations to save discovered accounts
+      // This simulates saveDiscoveredAccounts which checks for existing accounts
+      await t.run(async (ctx: AnyCtx) => {
+        const accounts = [
           {
             accountNumber: "111111111111", // Already connected
             accountName: "Existing Account",
             email: "existing@example.com",
             accountArn: "arn:aws:organizations::123456789012:account/o-abc123/111111111111",
-            joinedMethod: "CREATED",
+            joinedMethod: "CREATED" as const,
             joinedTimestamp: now,
-            awsStatus: "ACTIVE",
+            awsStatus: "ACTIVE" as const,
           },
           {
             accountNumber: "222222222222", // New account
             accountName: "New Account",
             email: "new@example.com",
             accountArn: "arn:aws:organizations::123456789012:account/o-abc123/222222222222",
-            joinedMethod: "CREATED",
+            joinedMethod: "CREATED" as const,
             joinedTimestamp: now,
-            awsStatus: "ACTIVE",
+            awsStatus: "ACTIVE" as const,
           },
-        ],
+        ];
+        for (const account of accounts) {
+          // Check if account is already connected
+          const existingAccount = await ctx.db
+            .query("awsAccounts")
+            .withIndex("by_organization", (q: AnyCtx) => q.eq("organizationId", org._id))
+            .filter((q: AnyCtx) => q.eq(q.field("accountNumber"), account.accountNumber))
+            .first();
+
+          await ctx.db.insert("discoveredAwsAccounts", {
+            discoveryId,
+            organizationId: org._id,
+            accountNumber: account.accountNumber,
+            accountName: account.accountName,
+            email: account.email,
+            accountArn: account.accountArn,
+            joinedMethod: account.joinedMethod,
+            joinedTimestamp: account.joinedTimestamp,
+            awsStatus: account.awsStatus,
+            status: existingAccount ? "connected" : "discovered",
+            connectedAwsAccountId: existingAccount?._id,
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
       });
 
       const accounts = await t.run(async (ctx: AnyCtx) => {

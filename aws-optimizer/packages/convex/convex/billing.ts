@@ -117,7 +117,7 @@ export const getUsageStats = query({
  */
 export const getInvoices = query({
   args: {},
-  handler: async (ctx) => {
+  handler: async (_ctx) => {
     // In a real implementation, this would fetch invoices from Stripe
     // For now, return an empty array
     return [];

@@ -14,7 +14,7 @@ import {
   createMockAwsCredentials,
   createMockSandboxExecution,
 } from "./test.helpers";
-import { api } from "./_generated/api";
+// Note: api import removed - sandbox functions are internal and not exposed
 
 // Type assertion helper for convex-test
 type AnyCtx = TestCtx;
@@ -32,8 +32,9 @@ describe("Sandbox Internal Functions", () => {
         status: "active",
       });
 
-      const result = await t.query(api.sandbox.getAwsAccount, {
-        awsAccountId: awsAccount._id,
+      // Internal query - use direct DB operation
+      const result = await t.run(async (ctx: AnyCtx) => {
+        return await ctx.db.get(awsAccount._id);
       });
 
       expect(result).toBeDefined();
@@ -55,8 +56,9 @@ describe("Sandbox Internal Functions", () => {
         await ctx.db.delete(awsAccount._id);
       });
 
-      const result = await t.query(api.sandbox.getAwsAccount, {
-        awsAccountId: awsAccount._id,
+      // Internal query - use direct DB operation
+      const result = await t.run(async (ctx: AnyCtx) => {
+        return await ctx.db.get(awsAccount._id);
       });
 
       expect(result).toBeNull();
@@ -79,8 +81,12 @@ describe("Sandbox Internal Functions", () => {
         encryptedSecretAccessKey: "encrypted-wJalrXUtnFEMI/K7MDENG",
       });
 
-      const result = await t.query(api.sandbox.getAwsCredentials, {
-        awsAccountId: awsAccount._id,
+      // Internal query - use direct DB operation
+      const result = await t.run(async (ctx: AnyCtx) => {
+        return await ctx.db
+          .query("awsCredentials")
+          .withIndex("by_awsAccount", (q: AnyCtx) => q.eq("awsAccountId", awsAccount._id))
+          .first();
       });
 
       expect(result).toBeDefined();
@@ -99,8 +105,12 @@ describe("Sandbox Internal Functions", () => {
       });
       // No credentials created
 
-      const result = await t.query(api.sandbox.getAwsCredentials, {
-        awsAccountId: awsAccount._id,
+      // Internal query - use direct DB operation
+      const result = await t.run(async (ctx: AnyCtx) => {
+        return await ctx.db
+          .query("awsCredentials")
+          .withIndex("by_awsAccount", (q: AnyCtx) => q.eq("awsAccountId", awsAccount._id))
+          .first();
       });
 
       expect(result).toBeNull();
@@ -118,13 +128,18 @@ describe("Sandbox Internal Functions", () => {
         status: "active",
       });
 
-      await t.mutation(api.sandbox.storeExecution, {
-        awsAccountId: awsAccount._id,
-        command: "aws sts get-caller-identity",
-        stdout: '{"Account": "123456789012"}',
-        stderr: "",
-        exitCode: 0,
-        executionTime: 500,
+      // Internal mutation - use direct DB operation
+      await t.run(async (ctx: AnyCtx) => {
+        const now = Date.now();
+        await ctx.db.insert("sandboxExecutions", {
+          awsAccountId: awsAccount._id,
+          command: "aws sts get-caller-identity",
+          stdout: '{"Account": "123456789012"}',
+          stderr: "",
+          exitCode: 0,
+          executionTime: 500,
+          createdAt: now,
+        });
       });
 
       // Verify execution was stored
@@ -155,13 +170,18 @@ describe("Sandbox Internal Functions", () => {
         status: "active",
       });
 
-      await t.mutation(api.sandbox.storeExecution, {
-        awsAccountId: awsAccount._id,
-        command: "aws s3 ls s3://private-bucket",
-        stdout: "",
-        stderr: "An error occurred (AccessDenied)",
-        exitCode: 1,
-        executionTime: 200,
+      // Internal mutation - use direct DB operation
+      await t.run(async (ctx: AnyCtx) => {
+        const now = Date.now();
+        await ctx.db.insert("sandboxExecutions", {
+          awsAccountId: awsAccount._id,
+          command: "aws s3 ls s3://private-bucket",
+          stdout: "",
+          stderr: "An error occurred (AccessDenied)",
+          exitCode: 1,
+          executionTime: 200,
+          createdAt: now,
+        });
       });
 
       const executions = await t.run(async (ctx: AnyCtx) => {
@@ -186,22 +206,32 @@ describe("Sandbox Internal Functions", () => {
         organizationId: org._id,
       });
 
-      await t.mutation(api.sandbox.storeExecution, {
-        awsAccountId: awsAccount._id,
-        command: "aws sts get-caller-identity",
-        stdout: "{}",
-        stderr: "",
-        exitCode: 0,
-        executionTime: 100,
+      // Internal mutation - use direct DB operation
+      await t.run(async (ctx: AnyCtx) => {
+        const now = Date.now();
+        await ctx.db.insert("sandboxExecutions", {
+          awsAccountId: awsAccount._id,
+          command: "aws sts get-caller-identity",
+          stdout: "{}",
+          stderr: "",
+          exitCode: 0,
+          executionTime: 100,
+          createdAt: now,
+        });
       });
 
-      await t.mutation(api.sandbox.storeExecution, {
-        awsAccountId: awsAccount._id,
-        command: "aws s3 ls",
-        stdout: "bucket1\nbucket2",
-        stderr: "",
-        exitCode: 0,
-        executionTime: 200,
+      // Internal mutation - use direct DB operation
+      await t.run(async (ctx: AnyCtx) => {
+        const now = Date.now();
+        await ctx.db.insert("sandboxExecutions", {
+          awsAccountId: awsAccount._id,
+          command: "aws s3 ls",
+          stdout: "bucket1\nbucket2",
+          stderr: "",
+          exitCode: 0,
+          executionTime: 200,
+          createdAt: now,
+        });
       });
 
       const executions = await t.run(async (ctx: AnyCtx) => {
@@ -239,8 +269,12 @@ describe("Sandbox Internal Functions", () => {
       });
 
       // Retrieve and verify the encrypted values are stored
-      const credentials = await t.query(api.sandbox.getAwsCredentials, {
-        awsAccountId: awsAccount._id,
+      // Internal query - use direct DB operation
+      const credentials = await t.run(async (ctx: AnyCtx) => {
+        return await ctx.db
+          .query("awsCredentials")
+          .withIndex("by_awsAccount", (q: AnyCtx) => q.eq("awsAccountId", awsAccount._id))
+          .first();
       });
 
       expect(credentials?.encryptedAccessKeyId).toContain("encrypted-");
@@ -258,8 +292,9 @@ describe("Sandbox Internal Functions", () => {
         status: "active",
       });
 
-      const result = await t.query(api.sandbox.getAwsAccount, {
-        awsAccountId: awsAccount._id,
+      // Internal query - use direct DB operation
+      const result = await t.run(async (ctx: AnyCtx) => {
+        return await ctx.db.get(awsAccount._id);
       });
 
       expect(result?.status).toBe("active");
@@ -274,8 +309,9 @@ describe("Sandbox Internal Functions", () => {
         status: "inactive",
       });
 
-      const result = await t.query(api.sandbox.getAwsAccount, {
-        awsAccountId: awsAccount._id,
+      // Internal query - use direct DB operation
+      const result = await t.run(async (ctx: AnyCtx) => {
+        return await ctx.db.get(awsAccount._id);
       });
 
       expect(result?.status).toBe("inactive");
@@ -290,8 +326,9 @@ describe("Sandbox Internal Functions", () => {
         status: "error",
       });
 
-      const result = await t.query(api.sandbox.getAwsAccount, {
-        awsAccountId: awsAccount._id,
+      // Internal query - use direct DB operation
+      const result = await t.run(async (ctx: AnyCtx) => {
+        return await ctx.db.get(awsAccount._id);
       });
 
       expect(result?.status).toBe("error");
@@ -313,8 +350,9 @@ describe("Sandbox Internal Functions", () => {
         await ctx.db.patch(awsAccount._id, { region: "eu-west-1" });
       });
 
-      const result = await t.query(api.sandbox.getAwsAccount, {
-        awsAccountId: awsAccount._id,
+      // Internal query - use direct DB operation
+      const result = await t.run(async (ctx: AnyCtx) => {
+        return await ctx.db.get(awsAccount._id);
       });
 
       expect(result?.region).toBe("eu-west-1");
@@ -329,8 +367,9 @@ describe("Sandbox Internal Functions", () => {
         status: "active",
       });
 
-      const result = await t.query(api.sandbox.getAwsAccount, {
-        awsAccountId: awsAccount._id,
+      // Internal query - use direct DB operation
+      const result = await t.run(async (ctx: AnyCtx) => {
+        return await ctx.db.get(awsAccount._id);
       });
 
       expect(result?.region).toBeUndefined();
