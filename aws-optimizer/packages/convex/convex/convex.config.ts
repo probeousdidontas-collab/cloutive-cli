@@ -6,6 +6,7 @@ import workpool from "@convex-dev/workpool/convex.config";
 import actionRetrier from "@convex-dev/action-retrier/convex.config";
 import stripe from "@convex-dev/stripe/convex.config.js";
 import betterAuth from "./betterAuth/convex.config";
+import feedback from "@fatagnus/convex-feedback/convex.config";
 
 const app = defineApp();
 
@@ -29,5 +30,8 @@ app.use(stripe);
 
 // Authentication via Better Auth
 app.use(betterAuth);
+
+// Bug reporting and feedback system
+app.use(feedback);
 
 export default app;

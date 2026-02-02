@@ -7,6 +7,7 @@ import { router } from "./router";
 import { theme } from "./lib/theme";
 import { ConvexClientProvider } from "./lib/convex";
 import { StoreProvider } from "./stores";
+import { FeedbackProvider } from "./components/FeedbackButton";
 import "@mantine/core/styles.css";
 import "@mantine/spotlight/styles.css";
 import "@mantine/notifications/styles.css";
@@ -17,7 +18,9 @@ createRoot(document.getElementById("root")!).render(
       <MantineProvider theme={theme} defaultColorScheme="auto">
         <Notifications position="top-right" />
         <StoreProvider>
-          <RouterProvider router={router} />
+          <FeedbackProvider>
+            <RouterProvider router={router} />
+          </FeedbackProvider>
         </StoreProvider>
       </MantineProvider>
     </ConvexClientProvider>

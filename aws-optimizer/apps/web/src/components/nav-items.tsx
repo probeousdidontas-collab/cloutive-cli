@@ -13,6 +13,7 @@ import {
   IconActivity,
   IconCreditCard,
   IconUsers,
+  IconBug,
 } from "@tabler/icons-react";
 
 export interface NavItem {
@@ -36,4 +37,5 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Activity", path: "/settings/activity", icon: <IconActivity size={20} /> },
   { label: "Billing", path: "/billing", icon: <IconCreditCard size={20} /> },
   { label: "Team", path: "/team", icon: <IconUsers size={20} /> },
+  { label: "Feedback", path: "/feedback-admin", icon: <IconBug size={20} /> },
 ];

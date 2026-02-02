@@ -1,5 +1,5 @@
 import { createRouter, createRootRoute, createRoute, Outlet } from "@tanstack/react-router";
-import { LoginPage, SignupPage, ForgotPasswordPage, ChatPage, AccountsPage, DashboardPage, CostExplorerPage, ResourcesPage, RecommendationsPage, TerminalPage, BudgetsPage, AlertsPage, ReportsPage, BillingPage, TeamPage, SettingsPage, PartnerPage, LandingPage, ActivityPage, AcceptInvitationPage } from "./pages";
+import { LoginPage, SignupPage, ForgotPasswordPage, ChatPage, AccountsPage, DashboardPage, CostExplorerPage, ResourcesPage, RecommendationsPage, TerminalPage, BudgetsPage, AlertsPage, ReportsPage, BillingPage, TeamPage, SettingsPage, PartnerPage, LandingPage, ActivityPage, AcceptInvitationPage, FeedbackAdminPage } from "./pages";
 import { AppLayout } from "./components/AppShell";
 
 // Root route - just renders Outlet, no layout
@@ -161,6 +161,13 @@ const partnerRoute = createRoute({
   component: PartnerPage,
 });
 
+// Feedback Admin route
+const feedbackAdminRoute = createRoute({
+  getParentRoute: () => appLayoutRoute,
+  path: "/feedback-admin",
+  component: FeedbackAdminPage,
+});
+
 // Route tree - authLayoutRoute contains auth-related routes (no sidebar)
 // appLayoutRoute contains all authenticated routes (with sidebar)
 const routeTree = rootRoute.addChildren([
@@ -187,6 +194,7 @@ const routeTree = rootRoute.addChildren([
     billingRoute,
     teamRoute,
     partnerRoute,
+    feedbackAdminRoute,
   ]),
 ]);
 

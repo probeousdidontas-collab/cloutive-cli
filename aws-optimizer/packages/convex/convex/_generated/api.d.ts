@@ -28,6 +28,7 @@ import type * as budgets from "../budgets.js";
 import type * as costs from "../costs.js";
 import type * as crons from "../crons.js";
 import type * as dashboard from "../dashboard.js";
+import type * as feedback from "../feedback.js";
 import type * as functions from "../functions.js";
 import type * as http from "../http.js";
 import type * as organizationEmails from "../organizationEmails.js";
@@ -38,6 +39,7 @@ import type * as recommendations from "../recommendations.js";
 import type * as reports from "../reports.js";
 import type * as resources from "../resources.js";
 import type * as sandbox from "../sandbox.js";
+import type * as seed from "../seed.js";
 import type * as stripe from "../stripe.js";
 
 import type {
@@ -67,6 +69,7 @@ declare const fullApi: ApiFromModules<{
   costs: typeof costs;
   crons: typeof crons;
   dashboard: typeof dashboard;
+  feedback: typeof feedback;
   functions: typeof functions;
   http: typeof http;
   organizationEmails: typeof organizationEmails;
@@ -77,6 +80,7 @@ declare const fullApi: ApiFromModules<{
   reports: typeof reports;
   resources: typeof resources;
   sandbox: typeof sandbox;
+  seed: typeof seed;
   stripe: typeof stripe;
 }>;
 
@@ -5223,6 +5227,992 @@ export declare const components: {
           onUpdateHandle?: string;
         },
         any
+      >;
+    };
+  };
+  feedback: {
+    agents: {
+      bugReportAgent: {
+        processBugReportPublic: FunctionReference<
+          "action",
+          "internal",
+          {
+            bugReportId: string;
+            openRouterApiKey?: string;
+            resendApiKey?: string;
+            resendFromEmail?: string;
+          },
+          { error?: string; success: boolean }
+        >;
+      };
+      feedbackAgent: {
+        processFeedbackPublic: FunctionReference<
+          "action",
+          "internal",
+          {
+            feedbackId: string;
+            openRouterApiKey?: string;
+            resendApiKey?: string;
+            resendFromEmail?: string;
+          },
+          { error?: string; success: boolean }
+        >;
+      };
+      feedbackInterviewAgent: {
+        continueInterview: FunctionReference<
+          "action",
+          "internal",
+          {
+            context?: {
+              additionalInstructions?: string;
+              appDescription?: string;
+              appName?: string;
+              customQuestions?: {
+                bug?: Array<string>;
+                feedback?: Array<string>;
+              };
+              featureAreas?: Array<{ description?: string; name: string }>;
+              knownIssues?: Array<{ description?: string; title: string }>;
+            };
+            openRouterApiKey: string;
+            reportType: "bug" | "feedback";
+            requestId: string;
+            response: string;
+            sessionId: string;
+            threadId: string;
+          },
+          {
+            generatedReport?: {
+              description: string;
+              featureArea?: string;
+              priority?: "nice_to_have" | "important" | "critical";
+              reproductionSteps?: Array<string>;
+              severity?: "low" | "medium" | "high" | "critical";
+              title: string;
+              type?: "feature_request" | "change_request" | "general";
+            };
+            isComplete: boolean;
+            pendingRequest?: {
+              config?: any;
+              inputType: string;
+              prompt: string;
+              requestId: string;
+            };
+            response: string;
+            waitingForInput: boolean;
+          }
+        >;
+        getSessionByThread: FunctionReference<
+          "query",
+          "internal",
+          { threadId: string },
+          {
+            _creationTime: number;
+            _id: string;
+            context?: string;
+            createdAt: number;
+            generatedDescription?: string;
+            generatedFeatureArea?: string;
+            generatedFeedbackType?:
+              | "feature_request"
+              | "change_request"
+              | "general";
+            generatedPriority?: "nice_to_have" | "important" | "critical";
+            generatedReproSteps?: Array<string>;
+            generatedSeverity?: "low" | "medium" | "high" | "critical";
+            generatedTitle?: string;
+            isComplete: boolean;
+            reportType: "bug" | "feedback";
+            reporterEmail: string;
+            reporterId: string;
+            reporterName: string;
+            reporterType: "staff" | "customer";
+            threadId: string;
+            updatedAt: number;
+          } | null
+        >;
+        startBugInterview: FunctionReference<
+          "action",
+          "internal",
+          {
+            context?: {
+              additionalInstructions?: string;
+              appDescription?: string;
+              appName?: string;
+              customQuestions?: {
+                bug?: Array<string>;
+                feedback?: Array<string>;
+              };
+              featureAreas?: Array<{ description?: string; name: string }>;
+              knownIssues?: Array<{ description?: string; title: string }>;
+            };
+            openRouterApiKey: string;
+            reporterEmail: string;
+            reporterId: string;
+            reporterName: string;
+            reporterType: "staff" | "customer";
+          },
+          {
+            pendingRequest?: {
+              config?: any;
+              inputType: string;
+              prompt: string;
+              requestId: string;
+            };
+            response: string;
+            sessionId: string;
+            threadId: string;
+            waitingForInput: boolean;
+          }
+        >;
+        startFeedbackInterview: FunctionReference<
+          "action",
+          "internal",
+          {
+            context?: {
+              additionalInstructions?: string;
+              appDescription?: string;
+              appName?: string;
+              customQuestions?: {
+                bug?: Array<string>;
+                feedback?: Array<string>;
+              };
+              featureAreas?: Array<{ description?: string; name: string }>;
+              knownIssues?: Array<{ description?: string; title: string }>;
+            };
+            openRouterApiKey: string;
+            reporterEmail: string;
+            reporterId: string;
+            reporterName: string;
+            reporterType: "staff" | "customer";
+          },
+          {
+            pendingRequest?: {
+              config?: any;
+              inputType: string;
+              prompt: string;
+              requestId: string;
+            };
+            response: string;
+            sessionId: string;
+            threadId: string;
+            waitingForInput: boolean;
+          }
+        >;
+      };
+      index: {
+        continueInterview: FunctionReference<
+          "action",
+          "internal",
+          {
+            context?: {
+              additionalInstructions?: string;
+              appDescription?: string;
+              appName?: string;
+              customQuestions?: {
+                bug?: Array<string>;
+                feedback?: Array<string>;
+              };
+              featureAreas?: Array<{ description?: string; name: string }>;
+              knownIssues?: Array<{ description?: string; title: string }>;
+            };
+            openRouterApiKey: string;
+            reportType: "bug" | "feedback";
+            requestId: string;
+            response: string;
+            sessionId: string;
+            threadId: string;
+          },
+          {
+            generatedReport?: {
+              description: string;
+              featureArea?: string;
+              priority?: "nice_to_have" | "important" | "critical";
+              reproductionSteps?: Array<string>;
+              severity?: "low" | "medium" | "high" | "critical";
+              title: string;
+              type?: "feature_request" | "change_request" | "general";
+            };
+            isComplete: boolean;
+            pendingRequest?: {
+              config?: any;
+              inputType: string;
+              prompt: string;
+              requestId: string;
+            };
+            response: string;
+            waitingForInput: boolean;
+          }
+        >;
+        getSessionByThread: FunctionReference<
+          "query",
+          "internal",
+          { threadId: string },
+          {
+            _creationTime: number;
+            _id: string;
+            context?: string;
+            createdAt: number;
+            generatedDescription?: string;
+            generatedFeatureArea?: string;
+            generatedFeedbackType?:
+              | "feature_request"
+              | "change_request"
+              | "general";
+            generatedPriority?: "nice_to_have" | "important" | "critical";
+            generatedReproSteps?: Array<string>;
+            generatedSeverity?: "low" | "medium" | "high" | "critical";
+            generatedTitle?: string;
+            isComplete: boolean;
+            reportType: "bug" | "feedback";
+            reporterEmail: string;
+            reporterId: string;
+            reporterName: string;
+            reporterType: "staff" | "customer";
+            threadId: string;
+            updatedAt: number;
+          } | null
+        >;
+        processBugReportPublic: FunctionReference<
+          "action",
+          "internal",
+          {
+            bugReportId: string;
+            openRouterApiKey?: string;
+            resendApiKey?: string;
+            resendFromEmail?: string;
+          },
+          { error?: string; success: boolean }
+        >;
+        processFeedbackPublic: FunctionReference<
+          "action",
+          "internal",
+          {
+            feedbackId: string;
+            openRouterApiKey?: string;
+            resendApiKey?: string;
+            resendFromEmail?: string;
+          },
+          { error?: string; success: boolean }
+        >;
+        startBugInterview: FunctionReference<
+          "action",
+          "internal",
+          {
+            context?: {
+              additionalInstructions?: string;
+              appDescription?: string;
+              appName?: string;
+              customQuestions?: {
+                bug?: Array<string>;
+                feedback?: Array<string>;
+              };
+              featureAreas?: Array<{ description?: string; name: string }>;
+              knownIssues?: Array<{ description?: string; title: string }>;
+            };
+            openRouterApiKey: string;
+            reporterEmail: string;
+            reporterId: string;
+            reporterName: string;
+            reporterType: "staff" | "customer";
+          },
+          {
+            pendingRequest?: {
+              config?: any;
+              inputType: string;
+              prompt: string;
+              requestId: string;
+            };
+            response: string;
+            sessionId: string;
+            threadId: string;
+            waitingForInput: boolean;
+          }
+        >;
+        startFeedbackInterview: FunctionReference<
+          "action",
+          "internal",
+          {
+            context?: {
+              additionalInstructions?: string;
+              appDescription?: string;
+              appName?: string;
+              customQuestions?: {
+                bug?: Array<string>;
+                feedback?: Array<string>;
+              };
+              featureAreas?: Array<{ description?: string; name: string }>;
+              knownIssues?: Array<{ description?: string; title: string }>;
+            };
+            openRouterApiKey: string;
+            reporterEmail: string;
+            reporterId: string;
+            reporterName: string;
+            reporterType: "staff" | "customer";
+          },
+          {
+            pendingRequest?: {
+              config?: any;
+              inputType: string;
+              prompt: string;
+              requestId: string;
+            };
+            response: string;
+            sessionId: string;
+            threadId: string;
+            waitingForInput: boolean;
+          }
+        >;
+      };
+    };
+    apiKeys: {
+      create: FunctionReference<
+        "mutation",
+        "internal",
+        { expiresAt?: number; name: string },
+        {
+          createdAt: number;
+          expiresAt: number | null;
+          key: string;
+          keyPrefix: string;
+          name: string;
+        }
+      >;
+      list: FunctionReference<
+        "query",
+        "internal",
+        {},
+        Array<{
+          _id: string;
+          createdAt: number;
+          expiresAt: number | null;
+          isExpired: boolean;
+          isRevoked: boolean;
+          keyPrefix: string;
+          name: string;
+          revokedAt: number | null;
+        }>
+      >;
+      revoke: FunctionReference<
+        "mutation",
+        "internal",
+        { keyPrefix: string },
+        boolean
+      >;
+      rotate: FunctionReference<
+        "mutation",
+        "internal",
+        { expiresAt?: number; keyPrefix: string; name?: string },
+        {
+          createdAt: number;
+          expiresAt: number | null;
+          key: string;
+          keyPrefix: string;
+          name: string;
+        } | null
+      >;
+      validate: FunctionReference<
+        "query",
+        "internal",
+        { apiKey: string },
+        boolean
+      >;
+    };
+    bugReports: {
+      archive: FunctionReference<
+        "mutation",
+        "internal",
+        { reportId: string },
+        null
+      >;
+      create: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          browserInfo: string;
+          consoleErrors?: string;
+          description: string;
+          networkState: string;
+          openRouterApiKey?: string;
+          reporterEmail: string;
+          reporterId: string;
+          reporterName: string;
+          reporterType: "staff" | "customer";
+          resendApiKey?: string;
+          resendFromEmail?: string;
+          route?: string;
+          screenshotStorageId?: string;
+          severity: "low" | "medium" | "high" | "critical";
+          skipAutoProcess?: boolean;
+          title: string;
+          url: string;
+          viewportHeight: number;
+          viewportWidth: number;
+        },
+        string
+      >;
+      generateUploadUrl: FunctionReference<"mutation", "internal", {}, string>;
+      get: FunctionReference<
+        "query",
+        "internal",
+        { reportId: string },
+        {
+          _creationTime: number;
+          _id: string;
+          aiAnalyzedAt?: number;
+          aiEstimatedEffort?: "low" | "medium" | "high";
+          aiReproductionSteps?: Array<string>;
+          aiRootCauseAnalysis?: string;
+          aiSuggestedFix?: string;
+          aiSuggestedSeverity?: "low" | "medium" | "high" | "critical";
+          aiSummary?: string;
+          aiThreadId?: string;
+          browserInfo: string;
+          consoleErrors?: string;
+          createdAt: number;
+          description: string;
+          isArchived?: boolean;
+          networkState: string;
+          notificationsSentAt?: number;
+          reporterEmail: string;
+          reporterId: string;
+          reporterName: string;
+          reporterType: "staff" | "customer";
+          route?: string;
+          screenshotStorageId?: string;
+          severity: "low" | "medium" | "high" | "critical";
+          status: "open" | "in-progress" | "resolved" | "closed";
+          ticketNumber?: string;
+          title: string;
+          updatedAt: number;
+          url: string;
+          viewportHeight: number;
+          viewportWidth: number;
+        } | null
+      >;
+      getAiAnalysis: FunctionReference<
+        "query",
+        "internal",
+        { reportId: string },
+        {
+          aiAnalyzedAt: number | null;
+          aiEstimatedEffort: "low" | "medium" | "high" | null;
+          aiReproductionSteps: Array<string> | null;
+          aiRootCauseAnalysis: string | null;
+          aiSuggestedFix: string | null;
+          aiSuggestedSeverity: "low" | "medium" | "high" | "critical" | null;
+          aiSummary: string | null;
+          notificationsSentAt: number | null;
+        } | null
+      >;
+      getScreenshotUrl: FunctionReference<
+        "query",
+        "internal",
+        { storageId: string },
+        string | null
+      >;
+      list: FunctionReference<
+        "query",
+        "internal",
+        {
+          includeArchived?: boolean;
+          limit?: number;
+          severity?: "low" | "medium" | "high" | "critical";
+          status?: "open" | "in-progress" | "resolved" | "closed";
+        },
+        Array<{
+          _creationTime: number;
+          _id: string;
+          aiAnalyzedAt?: number;
+          aiEstimatedEffort?: "low" | "medium" | "high";
+          aiReproductionSteps?: Array<string>;
+          aiRootCauseAnalysis?: string;
+          aiSuggestedFix?: string;
+          aiSuggestedSeverity?: "low" | "medium" | "high" | "critical";
+          aiSummary?: string;
+          aiThreadId?: string;
+          browserInfo: string;
+          consoleErrors?: string;
+          createdAt: number;
+          description: string;
+          isArchived?: boolean;
+          networkState: string;
+          notificationsSentAt?: number;
+          reporterEmail: string;
+          reporterId: string;
+          reporterName: string;
+          reporterType: "staff" | "customer";
+          route?: string;
+          screenshotStorageId?: string;
+          severity: "low" | "medium" | "high" | "critical";
+          status: "open" | "in-progress" | "resolved" | "closed";
+          ticketNumber?: string;
+          title: string;
+          updatedAt: number;
+          url: string;
+          viewportHeight: number;
+          viewportWidth: number;
+        }>
+      >;
+      setArchivedByTicketNumber: FunctionReference<
+        "mutation",
+        "internal",
+        { isArchived: boolean; ticketNumber: string },
+        { isArchived: boolean; success: boolean; ticketNumber: string } | null
+      >;
+      unarchive: FunctionReference<
+        "mutation",
+        "internal",
+        { reportId: string },
+        null
+      >;
+      updateStatus: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          reportId: string;
+          status: "open" | "in-progress" | "resolved" | "closed";
+        },
+        null
+      >;
+      updateStatusByTicketNumber: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          status: "open" | "in-progress" | "resolved" | "closed";
+          ticketNumber: string;
+        },
+        { success: boolean; ticketNumber: string } | null
+      >;
+    };
+    feedback: {
+      archive: FunctionReference<
+        "mutation",
+        "internal",
+        { feedbackId: string },
+        null
+      >;
+      create: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          browserInfo: string;
+          consoleErrors?: string;
+          description: string;
+          networkState: string;
+          openRouterApiKey?: string;
+          priority: "nice_to_have" | "important" | "critical";
+          reporterEmail: string;
+          reporterId: string;
+          reporterName: string;
+          reporterType: "staff" | "customer";
+          resendApiKey?: string;
+          resendFromEmail?: string;
+          route?: string;
+          screenshotStorageId?: string;
+          skipAutoProcess?: boolean;
+          title: string;
+          type: "feature_request" | "change_request" | "general";
+          url: string;
+          viewportHeight: number;
+          viewportWidth: number;
+        },
+        string
+      >;
+      generateUploadUrl: FunctionReference<"mutation", "internal", {}, string>;
+      get: FunctionReference<
+        "query",
+        "internal",
+        { feedbackId: string },
+        {
+          _creationTime: number;
+          _id: string;
+          aiActionItems?: Array<string>;
+          aiAnalyzedAt?: number;
+          aiEstimatedEffort?: "low" | "medium" | "high";
+          aiImpactAnalysis?: string;
+          aiSuggestedPriority?: "nice_to_have" | "important" | "critical";
+          aiSummary?: string;
+          aiThreadId?: string;
+          browserInfo: string;
+          consoleErrors?: string;
+          createdAt: number;
+          description: string;
+          isArchived?: boolean;
+          networkState: string;
+          notificationsSentAt?: number;
+          priority: "nice_to_have" | "important" | "critical";
+          reporterEmail: string;
+          reporterId: string;
+          reporterName: string;
+          reporterType: "staff" | "customer";
+          route?: string;
+          screenshotStorageId?: string;
+          status:
+            | "open"
+            | "under_review"
+            | "planned"
+            | "in_progress"
+            | "completed"
+            | "declined";
+          ticketNumber?: string;
+          title: string;
+          type: "feature_request" | "change_request" | "general";
+          updatedAt: number;
+          url: string;
+          viewportHeight: number;
+          viewportWidth: number;
+        } | null
+      >;
+      getAiAnalysis: FunctionReference<
+        "query",
+        "internal",
+        { feedbackId: string },
+        {
+          aiActionItems: Array<string> | null;
+          aiAnalyzedAt: number | null;
+          aiEstimatedEffort: "low" | "medium" | "high" | null;
+          aiImpactAnalysis: string | null;
+          aiSuggestedPriority: "nice_to_have" | "important" | "critical" | null;
+          aiSummary: string | null;
+          notificationsSentAt: number | null;
+        } | null
+      >;
+      getScreenshotUrl: FunctionReference<
+        "query",
+        "internal",
+        { storageId: string },
+        string | null
+      >;
+      list: FunctionReference<
+        "query",
+        "internal",
+        {
+          includeArchived?: boolean;
+          limit?: number;
+          priority?: "nice_to_have" | "important" | "critical";
+          status?:
+            | "open"
+            | "under_review"
+            | "planned"
+            | "in_progress"
+            | "completed"
+            | "declined";
+          type?: "feature_request" | "change_request" | "general";
+        },
+        Array<{
+          _creationTime: number;
+          _id: string;
+          aiActionItems?: Array<string>;
+          aiAnalyzedAt?: number;
+          aiEstimatedEffort?: "low" | "medium" | "high";
+          aiImpactAnalysis?: string;
+          aiSuggestedPriority?: "nice_to_have" | "important" | "critical";
+          aiSummary?: string;
+          aiThreadId?: string;
+          browserInfo: string;
+          consoleErrors?: string;
+          createdAt: number;
+          description: string;
+          isArchived?: boolean;
+          networkState: string;
+          notificationsSentAt?: number;
+          priority: "nice_to_have" | "important" | "critical";
+          reporterEmail: string;
+          reporterId: string;
+          reporterName: string;
+          reporterType: "staff" | "customer";
+          route?: string;
+          screenshotStorageId?: string;
+          status:
+            | "open"
+            | "under_review"
+            | "planned"
+            | "in_progress"
+            | "completed"
+            | "declined";
+          ticketNumber?: string;
+          title: string;
+          type: "feature_request" | "change_request" | "general";
+          updatedAt: number;
+          url: string;
+          viewportHeight: number;
+          viewportWidth: number;
+        }>
+      >;
+      setArchivedByTicketNumber: FunctionReference<
+        "mutation",
+        "internal",
+        { isArchived: boolean; ticketNumber: string },
+        { isArchived: boolean; success: boolean; ticketNumber: string } | null
+      >;
+      unarchive: FunctionReference<
+        "mutation",
+        "internal",
+        { feedbackId: string },
+        null
+      >;
+      updateStatus: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          feedbackId: string;
+          status:
+            | "open"
+            | "under_review"
+            | "planned"
+            | "in_progress"
+            | "completed"
+            | "declined";
+        },
+        null
+      >;
+      updateStatusByTicketNumber: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          status:
+            | "open"
+            | "under_review"
+            | "planned"
+            | "in_progress"
+            | "completed"
+            | "declined";
+          ticketNumber: string;
+        },
+        { success: boolean; ticketNumber: string } | null
+      >;
+    };
+    inputRequests: {
+      cancel: FunctionReference<
+        "mutation",
+        "internal",
+        { requestId: string },
+        null
+      >;
+      get: FunctionReference<
+        "query",
+        "internal",
+        { requestId: string },
+        {
+          _creationTime: number;
+          _id: string;
+          agentName: string;
+          config?: {
+            fields?: Array<{
+              label: string;
+              name: string;
+              placeholder?: string;
+              required: boolean;
+              type: string;
+            }>;
+            multiline?: boolean;
+            options?: Array<{
+              description?: string;
+              label: string;
+              value: string;
+            }>;
+            placeholder?: string;
+          };
+          createdAt: number;
+          expiresAt?: number;
+          inputType: "text" | "choice" | "form";
+          prompt: string;
+          respondedAt?: number;
+          response?: string;
+          status: "pending" | "answered" | "expired" | "cancelled";
+          threadId: string;
+          toolCallId: string;
+          userId?: string;
+        } | null
+      >;
+      getPendingForThread: FunctionReference<
+        "query",
+        "internal",
+        { threadId: string },
+        {
+          _creationTime: number;
+          _id: string;
+          agentName: string;
+          config?: {
+            fields?: Array<{
+              label: string;
+              name: string;
+              placeholder?: string;
+              required: boolean;
+              type: string;
+            }>;
+            multiline?: boolean;
+            options?: Array<{
+              description?: string;
+              label: string;
+              value: string;
+            }>;
+            placeholder?: string;
+          };
+          createdAt: number;
+          expiresAt?: number;
+          inputType: "text" | "choice" | "form";
+          prompt: string;
+          respondedAt?: number;
+          response?: string;
+          status: "pending" | "answered" | "expired" | "cancelled";
+          threadId: string;
+          toolCallId: string;
+          userId?: string;
+        } | null
+      >;
+      submitResponse: FunctionReference<
+        "mutation",
+        "internal",
+        { requestId: string; response: string },
+        { success: boolean; threadId: string; toolCallId: string }
+      >;
+    };
+    prompts: {
+      getBugByTicketNumber: FunctionReference<
+        "query",
+        "internal",
+        { ticketNumber: string },
+        {
+          _id: string;
+          aiEstimatedEffort?: "low" | "medium" | "high";
+          aiReproductionSteps?: Array<string>;
+          aiRootCauseAnalysis?: string;
+          aiSuggestedFix?: string;
+          aiSummary?: string;
+          browserInfo: string;
+          consoleErrors?: string;
+          createdAt: number;
+          description: string;
+          networkState: string;
+          route?: string;
+          severity: "low" | "medium" | "high" | "critical";
+          status: "open" | "in-progress" | "resolved" | "closed";
+          ticketNumber: string;
+          title: string;
+          url: string;
+          viewportHeight: number;
+          viewportWidth: number;
+        } | null
+      >;
+      getFeedbackByTicketNumber: FunctionReference<
+        "query",
+        "internal",
+        { ticketNumber: string },
+        {
+          _id: string;
+          aiActionItems?: Array<string>;
+          aiEstimatedEffort?: "low" | "medium" | "high";
+          aiImpactAnalysis?: string;
+          aiSummary?: string;
+          browserInfo: string;
+          consoleErrors?: string;
+          createdAt: number;
+          description: string;
+          networkState: string;
+          priority: "nice_to_have" | "important" | "critical";
+          route?: string;
+          status:
+            | "open"
+            | "under_review"
+            | "planned"
+            | "in_progress"
+            | "completed"
+            | "declined";
+          ticketNumber: string;
+          title: string;
+          type: "feature_request" | "change_request" | "general";
+          url: string;
+          viewportHeight: number;
+          viewportWidth: number;
+        } | null
+      >;
+      getPrompt: FunctionReference<
+        "query",
+        "internal",
+        {
+          template?: "fix" | "implement" | "analyze" | "codebuff";
+          ticketNumber: string;
+        },
+        {
+          prompt: string;
+          template: "fix" | "implement" | "analyze" | "codebuff";
+          ticketNumber: string;
+          type: "bug" | "feedback";
+        } | null
+      >;
+    };
+    supportTeams: {
+      create: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          bugReportSeverities: Array<"low" | "medium" | "high" | "critical">;
+          feedbackTypes: Array<
+            "feature_request" | "change_request" | "general"
+          >;
+          memberEmails: Array<string>;
+          teamName: string;
+        },
+        string
+      >;
+      get: FunctionReference<
+        "query",
+        "internal",
+        { teamId: string },
+        {
+          _creationTime: number;
+          _id: string;
+          bugReportSeverities: Array<"low" | "medium" | "high" | "critical">;
+          createdAt: number;
+          feedbackTypes: Array<
+            "feature_request" | "change_request" | "general"
+          >;
+          isActive: boolean;
+          memberEmails: Array<string>;
+          teamName: string;
+          updatedAt: number;
+        } | null
+      >;
+      list: FunctionReference<
+        "query",
+        "internal",
+        { activeOnly?: boolean },
+        Array<{
+          _creationTime: number;
+          _id: string;
+          bugReportSeverities: Array<"low" | "medium" | "high" | "critical">;
+          createdAt: number;
+          feedbackTypes: Array<
+            "feature_request" | "change_request" | "general"
+          >;
+          isActive: boolean;
+          memberEmails: Array<string>;
+          teamName: string;
+          updatedAt: number;
+        }>
+      >;
+      remove: FunctionReference<
+        "mutation",
+        "internal",
+        { teamId: string },
+        null
+      >;
+      update: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          bugReportSeverities?: Array<"low" | "medium" | "high" | "critical">;
+          feedbackTypes?: Array<
+            "feature_request" | "change_request" | "general"
+          >;
+          isActive?: boolean;
+          memberEmails?: Array<string>;
+          teamId: string;
+          teamName?: string;
+        },
+        null
       >;
     };
   };
