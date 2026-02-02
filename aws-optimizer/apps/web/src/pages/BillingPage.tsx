@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import {
   Container,
   Paper,
@@ -117,24 +117,26 @@ export function BillingPage() {
   // const createPortalSession = useMutation(api.billing.createPortalSession);
   
   // Placeholder data for UI development
-  const subscription: Subscription | undefined = {
+  // Using fixed timestamps for placeholder data to avoid impure Date.now() calls
+  const PLACEHOLDER_NOW = 1704067200000; // Jan 1, 2024
+  const subscription: Subscription | undefined = useMemo(() => ({
     _id: "placeholder",
     plan: "free",
     status: "active",
-    currentPeriodStart: Date.now() - 30 * 24 * 60 * 60 * 1000,
-    currentPeriodEnd: Date.now() + 30 * 24 * 60 * 60 * 1000,
+    currentPeriodStart: PLACEHOLDER_NOW - 30 * 24 * 60 * 60 * 1000,
+    currentPeriodEnd: PLACEHOLDER_NOW + 30 * 24 * 60 * 60 * 1000,
     pricePerMonth: 0,
     limits: {
       accounts: 1,
       analysisRuns: 5,
     },
-  };
-  const usageStats: UsageStats | undefined = {
+  }), []);
+  const usageStats: UsageStats | undefined = useMemo(() => ({
     accountsConnected: 0,
     analysisRunsThisMonth: 0,
     lastAnalysisAt: null,
-  };
-  const invoices: Invoice[] | undefined = [];
+  }), []);
+  const invoices: Invoice[] | undefined = useMemo(() => [], []);
 
   // Calculate usage percentages
   const accountsPercentage = subscription && usageStats

@@ -146,7 +146,7 @@ export function SettingsPage() {
         // Refresh organization data
         await refetchOrganization();
       }
-    } catch (error) {
+    } catch {
       showErrorToast("Failed to save settings");
     } finally {
       setIsSaving(false);

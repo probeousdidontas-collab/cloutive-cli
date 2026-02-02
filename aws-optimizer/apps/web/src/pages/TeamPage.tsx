@@ -144,7 +144,7 @@ export function TeamPage() {
         // Refresh organization (and members)
         await refetchOrganization();
       }
-    } catch (error) {
+    } catch {
       showErrorToast("Failed to send invitation");
     } finally {
       setIsSubmitting(false);
@@ -164,7 +164,7 @@ export function TeamPage() {
           // Refresh organization (and members)
           await refetchOrganization();
         }
-      } catch (error) {
+      } catch {
         showErrorToast("Failed to update role");
       } finally {
         setRoleMenuOpened(null);
@@ -198,7 +198,7 @@ export function TeamPage() {
         // Refresh organization (and members)
         await refetchOrganization();
       }
-    } catch (error) {
+    } catch {
       showErrorToast("Failed to remove member");
     } finally {
       setIsSubmitting(false);

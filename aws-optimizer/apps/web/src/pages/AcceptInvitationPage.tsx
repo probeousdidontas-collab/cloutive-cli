@@ -53,7 +53,7 @@ export function AcceptInvitationPage() {
           email: session?.user?.email || "",
         });
         setStatus("ready");
-      } catch (error) {
+      } catch {
         setStatus("error");
         setErrorMessage("Failed to load invitation details");
       }
@@ -82,7 +82,7 @@ export function AcceptInvitationPage() {
           navigate({ to: "/dashboard" });
         }, 2000);
       }
-    } catch (error) {
+    } catch {
       setStatus("error");
       setErrorMessage("An unexpected error occurred");
       showErrorToast("Failed to accept invitation");

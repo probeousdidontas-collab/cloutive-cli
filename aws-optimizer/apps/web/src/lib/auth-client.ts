@@ -149,9 +149,9 @@ const baseAuthClient = createAuthClient({
   fetchOptions: {
     credentials: "include", // Send cookies with auth requests
   },
-  // Cast plugins to any to avoid Better Auth type compatibility issues
+  // Cast plugins to fix Better Auth type compatibility issues
   // The plugins work correctly at runtime; this is a TypeScript limitation
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // @ts-expect-error - Better Auth plugin type compatibility
   plugins: [
     convexClient(),
     adminClient(),
@@ -159,7 +159,7 @@ const baseAuthClient = createAuthClient({
       // Enable dynamic access control on client
       // Note: Permission checks are always verified server-side
     }),
-  ] as any[],
+  ],
 });
 
 // Cast to extended type to access plugin methods with proper typing

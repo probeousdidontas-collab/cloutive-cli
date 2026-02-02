@@ -10,11 +10,7 @@ interface ConvexPluginMethods {
 
 const convexUrl = import.meta.env.VITE_CONVEX_URL as string;
 
-/**
- * Get the Convex URL for the client.
- * In production, use the /convex proxy path to route through our worker.
- * In development, use the VITE_CONVEX_URL environment variable directly.
- */
+// eslint-disable-next-line react-refresh/only-export-components
 function getConvexClientUrl(): string | null {
   if (!convexUrl) return null;
 
@@ -39,6 +35,7 @@ const convex = (() => {
  *
  * Enable with: VITE_TEST_MODE=true
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function isFrontendTestMode(): boolean {
   return IS_TEST_MODE;
 }
@@ -47,6 +44,7 @@ export function isFrontendTestMode(): boolean {
  * Get test user info from environment variables.
  * Used for displaying user info in test mode.
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function getTestUserInfo() {
   return {
     email: import.meta.env.VITE_TEST_USER_EMAIL || "test@example.com",

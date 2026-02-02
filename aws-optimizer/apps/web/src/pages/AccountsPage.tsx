@@ -338,10 +338,10 @@ export const AccountsPage = observer(function AccountsPage() {
 
       if (validation.success) {
         showSuccessToast(`Credentials verified for ${account.name}`);
-        if (validation.permissions.some((p) => !p.granted)) {
+        if (validation.permissions.some((p: { granted: boolean; permission: string }) => !p.granted)) {
           const missing = validation.permissions
-            .filter((p) => !p.granted)
-            .map((p) => p.permission)
+            .filter((p: { granted: boolean; permission: string }) => !p.granted)
+            .map((p: { granted: boolean; permission: string }) => p.permission)
             .join(", ");
           showWarningToast(`Missing permissions: ${missing}`);
         }
@@ -503,7 +503,7 @@ export const AccountsPage = observer(function AccountsPage() {
               ? `AWS account ${validation.identity.account} connected and verified successfully`
               : "AWS account connected and verified successfully"
           );
-          if (validation.permissions.some((p) => !p.granted)) {
+          if (validation.permissions.some((p: { granted: boolean; permission: string }) => !p.granted)) {
             showWarningToast(
               "Credentials valid but some permissions are missing. Cost analysis may be limited."
             );
@@ -722,7 +722,7 @@ export const AccountsPage = observer(function AccountsPage() {
               ? `AWS account ${validation.identity.account} connected and verified successfully`
               : "AWS account connected and verified successfully"
           );
-          if (validation.permissions.some((p) => !p.granted)) {
+          if (validation.permissions.some((p: { granted: boolean; permission: string }) => !p.granted)) {
             showWarningToast(
               "Credentials valid but some permissions are missing. Cost analysis may be limited."
             );
