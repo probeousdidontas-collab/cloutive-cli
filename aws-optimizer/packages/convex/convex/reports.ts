@@ -45,7 +45,7 @@ export const list = query({
     organizationId: v.optional(v.id("organizations")),
   },
   handler: async (ctx, args) => {
-    // In test mode, use provided org ID or fall back to test org
+    // In test mode, use provided org ID or fall back to first available org
     let organizationId: Id<"organizations"> | null = args.organizationId ?? null;
     
     // If no org ID provided, try to get from auth context
@@ -53,9 +53,10 @@ export const list = query({
       organizationId = await getUserOrgId(ctx);
     }
     
-    // In test mode without explicit org, use test org ID
+    // In test mode without explicit org, find the first available organization
     if (!organizationId && isTestMode()) {
-      organizationId = "test-org-id" as Id<"organizations">;
+      const firstOrg = await ctx.db.query("organizations").first();
+      organizationId = firstOrg?._id ?? null;
     }
     
     if (!organizationId) {
@@ -114,7 +115,7 @@ export const generate = mutation({
     format: reportFormatValidator,
   },
   handler: async (ctx, args) => {
-    // In test mode, use provided org ID or fall back to test org
+    // In test mode, use provided org ID or fall back to first available org
     let organizationId: Id<"organizations"> | null = args.organizationId ?? null;
     
     // If no org ID provided, try to get from auth context
@@ -122,13 +123,14 @@ export const generate = mutation({
       organizationId = await getUserOrgId(ctx);
     }
     
-    // In test mode without explicit org, use test org ID
+    // In test mode without explicit org, find the first available organization
     if (!organizationId && isTestMode()) {
-      organizationId = "test-org-id" as Id<"organizations">;
+      const firstOrg = await ctx.db.query("organizations").first();
+      organizationId = firstOrg?._id ?? null;
     }
     
     if (!organizationId) {
-      throw new Error("No organization found");
+      throw new Error("No organization found. Please create an organization first.");
     }
 
     const now = Date.now();

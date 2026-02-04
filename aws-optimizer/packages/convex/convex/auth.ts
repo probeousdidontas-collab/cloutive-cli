@@ -101,7 +101,10 @@ export const createAuth = (ctx: Parameters<typeof authClient.adapter>[0]) => {
       "http://localhost:5174",
       "http://localhost:5175",
       "http://localhost:3000",
-    ],
+      // Staging and production URLs (from env vars for flexibility)
+      process.env.SITE_URL || "",
+      process.env.CONVEX_SITE_URL || "",
+    ].filter(Boolean),
     advanced: {
       useSecureCookies: process.env.NODE_ENV === "production",
       ipAddress: {
