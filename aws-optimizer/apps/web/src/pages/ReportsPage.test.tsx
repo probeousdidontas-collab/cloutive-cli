@@ -108,6 +108,7 @@ const mockDeleteSchedule = vi.fn();
 const mockToggleSchedule = vi.fn();
 
 let queryCallIndex = 0;
+let mutationCallIndex = 0;
 
 vi.mock("convex/react", () => ({
   useQuery: vi.fn(() => {
@@ -116,11 +117,15 @@ vi.mock("convex/react", () => ({
     if (queryCallIndex % 2 === 1) return mockReports;
     return mockScheduledReports;
   }),
-  useMutation: vi.fn((mutationName) => {
-    if (mutationName?.includes?.("generate")) return mockGenerateReport;
-    if (mutationName?.includes?.("createSchedule")) return mockCreateSchedule;
-    if (mutationName?.includes?.("deleteSchedule")) return mockDeleteSchedule;
-    if (mutationName?.includes?.("toggleSchedule")) return mockToggleSchedule;
+  useMutation: vi.fn(() => {
+    mutationCallIndex++;
+    // Mutations are called in order in ReportsPage.tsx:
+    // 1. generateReport, 2. createSchedule, 3. deleteSchedule, 4. toggleSchedule
+    const index = mutationCallIndex % 4;
+    if (index === 1) return mockGenerateReport;
+    if (index === 2) return mockCreateSchedule;
+    if (index === 3) return mockDeleteSchedule;
+    if (index === 0) return mockToggleSchedule; // 4 % 4 = 0
     return vi.fn();
   }),
 }));
@@ -137,6 +142,21 @@ vi.mock("../lib/auth-client", () => ({
     },
     isPending: false,
   }),
+  IS_TEST_MODE: true,
+}));
+
+// Mock useOrganization hook - must match the actual hook return values used by ReportsPage
+vi.mock("../hooks/useOrganization", () => ({
+  useOrganization: () => ({
+    activeOrganization: {
+      id: "test-org-id",
+      name: "Test Organization",
+      slug: "test-org",
+    },
+    convexOrgId: "test-convex-org-id",
+    isLoading: false,
+    isReady: true,
+  }),
 }));
 
 function renderWithProviders(ui: React.ReactElement) {
@@ -146,6 +166,7 @@ function renderWithProviders(ui: React.ReactElement) {
 describe("US-031: Reports Page", () => {
   beforeEach(() => {
     queryCallIndex = 0;
+    mutationCallIndex = 0;
     mockNavigate.mockClear();
     mockGenerateReport.mockClear();
     mockCreateSchedule.mockClear();
@@ -498,6 +519,7 @@ describe("ReportsPage Route Integration", () => {
   test("ReportsPage should be exported from pages index", async () => {
     const pages = await import("./index");
     expect(pages.ReportsPage).toBeDefined();
-    expect(typeof pages.ReportsPage).toBe("function");
+    // ReportsPage is wrapped with MobX observer, which returns an object with $$typeof
+    expect(pages.ReportsPage).toBeTruthy();
   });
 });

@@ -95,6 +95,21 @@ vi.mock("../lib/auth-client", () => ({
     },
     isPending: false,
   }),
+  IS_TEST_MODE: true,
+}));
+
+// Mock useOrganization hook - must match the actual hook return values used by BudgetsPage
+vi.mock("../hooks/useOrganization", () => ({
+  useOrganization: () => ({
+    activeOrganization: {
+      id: "test-org-id",
+      name: "Test Organization",
+      slug: "test-org",
+    },
+    convexOrgId: "test-convex-org-id",
+    isLoading: false,
+    isReady: true,
+  }),
 }));
 
 function renderWithProviders(ui: React.ReactElement) {
@@ -379,6 +394,7 @@ describe("BudgetsPage Route Integration", () => {
   test("BudgetsPage should be exported from pages index", async () => {
     const pages = await import("./index");
     expect(pages.BudgetsPage).toBeDefined();
-    expect(typeof pages.BudgetsPage).toBe("function");
+    // BudgetsPage is wrapped with MobX observer, which returns an object with $$typeof
+    expect(pages.BudgetsPage).toBeTruthy();
   });
 });

@@ -20,11 +20,15 @@ const recommendationStatusValidator = v.union(
 
 /**
  * List all recommendations for the user's organization.
+ * Accepts optional organizationId for multi-org support.
  */
 export const list = query({
-  args: {},
-  handler: async (ctx) => {
-    const organizationId = await getUserOrgId(ctx);
+  args: {
+    organizationId: v.optional(v.id("organizations")),
+  },
+  handler: async (ctx, args) => {
+    // Use provided organizationId or fall back to auth context
+    const organizationId = args.organizationId ?? await getUserOrgId(ctx);
     if (!organizationId) {
       return [];
     }

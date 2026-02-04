@@ -121,6 +121,21 @@ vi.mock("../lib/auth-client", () => ({
     },
     isPending: false,
   }),
+  IS_TEST_MODE: true,
+}));
+
+// Mock useOrganization hook - must match the actual hook return values used by RecommendationsPage
+vi.mock("../hooks/useOrganization", () => ({
+  useOrganization: () => ({
+    activeOrganization: {
+      id: "test-org-id",
+      name: "Test Organization",
+      slug: "test-org",
+    },
+    convexOrgId: "test-convex-org-id",
+    isLoading: false,
+    isReady: true,
+  }),
 }));
 
 function renderWithProviders(ui: React.ReactElement) {
@@ -313,6 +328,7 @@ describe("RecommendationsPage Route Integration", () => {
   test("RecommendationsPage should be exported from pages index", async () => {
     const pages = await import("./index");
     expect(pages.RecommendationsPage).toBeDefined();
-    expect(typeof pages.RecommendationsPage).toBe("function");
+    // RecommendationsPage is wrapped with MobX observer, which returns an object with $$typeof
+    expect(pages.RecommendationsPage).toBeTruthy();
   });
 });

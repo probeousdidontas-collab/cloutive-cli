@@ -16,6 +16,8 @@ import {
   ActionIcon,
   Tooltip,
   SimpleGrid,
+  Center,
+  Loader,
 } from "@mantine/core";
 import { EmptyState } from "../components/ui";
 import {
@@ -30,11 +32,16 @@ import {
   IconSparkles,
   IconCoin,
   IconTrendingDown,
+  IconUser,
+  IconCloud,
 } from "@tabler/icons-react";
 import { useQuery, useMutation } from "convex/react";
+import { observer } from "mobx-react-lite";
 import { showSuccessToast, showErrorToast } from "../lib/notifications";
 import { api } from "@aws-optimizer/convex/convex/_generated/api";
 import type { Id } from "@aws-optimizer/convex/convex/_generated/dataModel";
+import { useSession, IS_TEST_MODE } from "../lib/auth-client";
+import { useOrganization } from "../hooks/useOrganization";
 
 interface Recommendation {
   _id: string;
@@ -112,7 +119,23 @@ function getStatusLabel(status: string): string {
   return labels[status] || status;
 }
 
-export function RecommendationsPage() {
+export const RecommendationsPage = observer(function RecommendationsPage() {
+  const { data: session, isPending: isSessionPending } = useSession();
+
+  // Wait for authentication before executing queries
+  const isAuthenticated = !isSessionPending && session !== null;
+
+  // Use organization state from MobX store
+  const {
+    activeOrganization,
+    convexOrgId,
+    isLoading: isLoadingOrg,
+    isReady: isOrgReady,
+  } = useOrganization();
+
+  // Use the resolved Convex organization ID from the store
+  const organizationId = convexOrgId;
+
   // Filters state
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
@@ -122,9 +145,25 @@ export function RecommendationsPage() {
   const [sortField, setSortField] = useState<SortField>("savings");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
-  // Fetch data - these APIs work without arguments, they get org from auth context
-  const recommendations = useQuery(api.recommendations.list) as Recommendation[] | undefined;
-  const accountsData = useQuery(api.awsAccounts.listByOrganization);
+  // In test mode, use empty args (backend handles test mode)
+  // Otherwise, pass the Convex organization ID
+  const shouldQueryRecommendations = isAuthenticated && isOrgReady && (IS_TEST_MODE || organizationId);
+
+  // Fetch data - pass organization ID for proper multi-org support
+  const recommendations = useQuery(
+    api.recommendations.list,
+    shouldQueryRecommendations
+      ? IS_TEST_MODE
+        ? {}
+        : { organizationId: organizationId! }
+      : "skip"
+  ) as Recommendation[] | undefined;
+  const accountsData = useQuery(
+    api.awsAccounts.listByOrganization,
+    shouldQueryRecommendations && organizationId
+      ? { organizationId }
+      : "skip"
+  );
   const accounts = accountsData as AwsAccount[] | undefined;
 
   // Mutation for updating status
@@ -283,6 +322,55 @@ export function RecommendationsPage() {
     }
     return sortDirection === "asc" ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />;
   };
+
+  // Show loading state while waiting for authentication or organization
+  if (isSessionPending || (isAuthenticated && !isOrgReady)) {
+    return (
+      <Center h="calc(100vh - 120px)" data-testid="recommendations-page-loading">
+        <Stack align="center" gap="md">
+          <Loader size="lg" />
+          <Text c="dimmed">Loading...</Text>
+        </Stack>
+      </Center>
+    );
+  }
+
+  // Show message if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <Center h="calc(100vh - 120px)" data-testid="recommendations-page-unauthenticated">
+        <Paper p="xl" ta="center" withBorder>
+          <IconUser size={48} style={{ opacity: 0.5 }} />
+          <Text size="lg" mt="md">
+            Please sign in to continue
+          </Text>
+          <Text size="sm" c="dimmed" mt="xs">
+            You need to be signed in to view recommendations.
+          </Text>
+          <Button component="a" href="/login" mt="md">
+            Sign In
+          </Button>
+        </Paper>
+      </Center>
+    );
+  }
+
+  // Show message if user has no organization (skip in test mode)
+  if (!IS_TEST_MODE && !isLoadingOrg && !activeOrganization) {
+    return (
+      <Center h="calc(100vh - 120px)" data-testid="recommendations-page-no-org">
+        <Paper p="xl" ta="center" withBorder>
+          <IconCloud size={48} style={{ opacity: 0.5 }} />
+          <Text size="lg" mt="md">
+            No Organization Found
+          </Text>
+          <Text size="sm" c="dimmed" mt="xs">
+            You need to be a member of an organization to view recommendations.
+          </Text>
+        </Paper>
+      </Center>
+    );
+  }
 
   return (
     <Container data-testid="recommendations-page" size="xl" py="xl">
@@ -594,6 +682,6 @@ export function RecommendationsPage() {
       </Stack>
     </Container>
   );
-}
+});
 
 export default RecommendationsPage;

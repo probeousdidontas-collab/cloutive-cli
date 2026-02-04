@@ -22,6 +22,7 @@ import {
   Anchor,
   MultiSelect,
   Card,
+  Center,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import {
@@ -38,9 +39,14 @@ import {
   IconFilterOff,
   IconFileTypePdf,
   IconFileTypeCsv,
+  IconUser,
+  IconCloud,
 } from "@tabler/icons-react";
 import { useQuery, useMutation } from "convex/react";
+import { observer } from "mobx-react-lite";
 import { api } from "@aws-optimizer/convex/convex/_generated/api";
+import { useSession, IS_TEST_MODE } from "../lib/auth-client";
+import { useOrganization } from "../hooks/useOrganization";
 
 type ReportType = "summary" | "detailed" | "recommendation" | "comparison";
 type ReportFormat = "pdf" | "csv";
@@ -147,7 +153,23 @@ function formatFutureTime(timestamp: number): string {
   });
 }
 
-export function ReportsPage() {
+export const ReportsPage = observer(function ReportsPage() {
+  const { data: session, isPending: isSessionPending } = useSession();
+
+  // Wait for authentication before executing queries
+  const isAuthenticated = !isSessionPending && session !== null;
+
+  // Use organization state from MobX store
+  const {
+    activeOrganization,
+    convexOrgId,
+    isLoading: isLoadingOrg,
+    isReady: isOrgReady,
+  } = useOrganization();
+
+  // Use the resolved Convex organization ID from the store
+  const organizationId = convexOrgId;
+
   // Modal states
   const [generateModalOpened, { open: openGenerateModal, close: closeGenerateModal }] = useDisclosure(false);
   const [scheduleModalOpened, { open: openScheduleModal, close: closeScheduleModal }] = useDisclosure(false);
@@ -167,9 +189,27 @@ export function ReportsPage() {
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
 
-  // Fetch data - these APIs work without arguments, they get org from auth context
-  const reportsData = useQuery(api.reports.list);
-  const scheduledReportsData = useQuery(api.reports.listScheduled);
+  // In test mode, use empty args (backend handles test mode)
+  // Otherwise, pass the Convex organization ID
+  const shouldQueryReports = isAuthenticated && isOrgReady && (IS_TEST_MODE || organizationId);
+
+  // Fetch data - pass organization ID for proper multi-org support
+  const reportsData = useQuery(
+    api.reports.list,
+    shouldQueryReports
+      ? IS_TEST_MODE
+        ? {} // Empty args for test mode - backend returns mock data
+        : { organizationId: organizationId! }
+      : "skip"
+  );
+  const scheduledReportsData = useQuery(
+    api.reports.listScheduled,
+    shouldQueryReports
+      ? IS_TEST_MODE
+        ? {}
+        : { organizationId: organizationId! }
+      : "skip"
+  );
   const reports = reportsData as Report[] | undefined;
   const scheduledReports = scheduledReportsData as ScheduledReport[] | undefined;
 
@@ -234,26 +274,23 @@ export function ReportsPage() {
 
   // Handle generate report
   const handleGenerateReport = useCallback(async () => {
-    await generateReport({
-      name: reportName,
-      type: reportType,
-      format: reportFormat,
-    });
+    const args = IS_TEST_MODE
+      ? { name: reportName, type: reportType, format: reportFormat }
+      : { organizationId: organizationId!, name: reportName, type: reportType, format: reportFormat };
+    await generateReport(args);
     closeGenerateModal();
     resetGenerateForm();
-  }, [reportName, reportType, reportFormat, generateReport, closeGenerateModal, resetGenerateForm]);
+  }, [reportName, reportType, reportFormat, organizationId, generateReport, closeGenerateModal, resetGenerateForm]);
 
   // Handle create schedule
   const handleCreateSchedule = useCallback(async () => {
-    await createSchedule({
-      name: scheduleName,
-      type: scheduleType,
-      format: scheduleFormat,
-      schedule: scheduleFrequency,
-    });
+    const args = IS_TEST_MODE
+      ? { name: scheduleName, type: scheduleType, format: scheduleFormat, schedule: scheduleFrequency }
+      : { organizationId: organizationId!, name: scheduleName, type: scheduleType, format: scheduleFormat, schedule: scheduleFrequency };
+    await createSchedule(args);
     closeScheduleModal();
     resetScheduleForm();
-  }, [scheduleName, scheduleType, scheduleFormat, scheduleFrequency, createSchedule, closeScheduleModal, resetScheduleForm]);
+  }, [scheduleName, scheduleType, scheduleFormat, scheduleFrequency, organizationId, createSchedule, closeScheduleModal, resetScheduleForm]);
 
   // Handle toggle schedule
   const handleToggleSchedule = useCallback(
@@ -273,6 +310,55 @@ export function ReportsPage() {
 
   const isLoading = reports === undefined;
   const isScheduledLoading = scheduledReports === undefined;
+
+  // Show loading state while waiting for authentication or organization
+  if (isSessionPending || (isAuthenticated && !isOrgReady)) {
+    return (
+      <Center h="calc(100vh - 120px)" data-testid="reports-page-loading">
+        <Stack align="center" gap="md">
+          <Loader size="lg" />
+          <Text c="dimmed">Loading...</Text>
+        </Stack>
+      </Center>
+    );
+  }
+
+  // Show message if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <Center h="calc(100vh - 120px)" data-testid="reports-page-unauthenticated">
+        <Paper p="xl" ta="center" withBorder>
+          <IconUser size={48} style={{ opacity: 0.5 }} />
+          <Text size="lg" mt="md">
+            Please sign in to continue
+          </Text>
+          <Text size="sm" c="dimmed" mt="xs">
+            You need to be signed in to view reports.
+          </Text>
+          <Button component="a" href="/login" mt="md">
+            Sign In
+          </Button>
+        </Paper>
+      </Center>
+    );
+  }
+
+  // Show message if user has no organization (skip in test mode)
+  if (!IS_TEST_MODE && !isLoadingOrg && !activeOrganization) {
+    return (
+      <Center h="calc(100vh - 120px)" data-testid="reports-page-no-org">
+        <Paper p="xl" ta="center" withBorder>
+          <IconCloud size={48} style={{ opacity: 0.5 }} />
+          <Text size="lg" mt="md">
+            No Organization Found
+          </Text>
+          <Text size="sm" c="dimmed" mt="xs">
+            You need to be a member of an organization to view reports.
+          </Text>
+        </Paper>
+      </Center>
+    );
+  }
 
   return (
     <Container data-testid="reports-page" size="xl" py="xl">
@@ -702,6 +788,6 @@ export function ReportsPage() {
       </Modal>
     </Container>
   );
-}
+});
 
 export default ReportsPage;

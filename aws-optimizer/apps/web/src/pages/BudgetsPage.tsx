@@ -22,6 +22,8 @@ import {
   Box,
   Divider,
   Radio,
+  Center,
+  Loader,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import {
@@ -32,10 +34,14 @@ import {
   IconBuilding,
   IconCloud,
   IconAlertTriangle,
+  IconUser,
 } from "@tabler/icons-react";
 import { useQuery, useMutation } from "convex/react";
+import { observer } from "mobx-react-lite";
 import { api } from "@aws-optimizer/convex/convex/_generated/api";
 import type { Id } from "@aws-optimizer/convex/convex/_generated/dataModel";
+import { useSession, IS_TEST_MODE } from "../lib/auth-client";
+import { useOrganization } from "../hooks/useOrganization";
 
 interface AwsAccount {
   _id: string;
@@ -104,7 +110,23 @@ function getExceededThreshold(percentage: number, thresholds: number[]): number 
 
 const DEFAULT_THRESHOLDS = [50, 80, 100];
 
-export function BudgetsPage() {
+export const BudgetsPage = observer(function BudgetsPage() {
+  const { data: session, isPending: isSessionPending } = useSession();
+
+  // Wait for authentication before executing queries
+  const isAuthenticated = !isSessionPending && session !== null;
+
+  // Use organization state from MobX store
+  const {
+    activeOrganization,
+    convexOrgId,
+    isLoading: isLoadingOrg,
+    isReady: isOrgReady,
+  } = useOrganization();
+
+  // Use the resolved Convex organization ID from the store
+  const organizationId = convexOrgId;
+
   // Modal states
   const [createModalOpened, { open: openCreateModal, close: closeCreateModal }] = useDisclosure(false);
   const [deleteModalOpened, { open: openDeleteModal, close: closeDeleteModal }] = useDisclosure(false);
@@ -120,10 +142,26 @@ export function BudgetsPage() {
   
   // Selected budget for edit/delete
   const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null);
+
+  // In test mode, use empty args (backend handles test mode)
+  // Otherwise, pass the Convex organization ID
+  const shouldQueryBudgets = isAuthenticated && isOrgReady && (IS_TEST_MODE || organizationId);
   
-  // Fetch data - these APIs now work without arguments, they get org from auth context
-  const budgets = useQuery(api.budgets.list) as Budget[] | undefined;
-  const accountsData = useQuery(api.awsAccounts.listByOrganization);
+  // Fetch data - pass organization ID for proper multi-org support
+  const budgets = useQuery(
+    api.budgets.list,
+    shouldQueryBudgets
+      ? IS_TEST_MODE
+        ? {}
+        : { organizationId: organizationId! }
+      : "skip"
+  ) as Budget[] | undefined;
+  const accountsData = useQuery(
+    api.awsAccounts.listByOrganization,
+    shouldQueryBudgets && organizationId
+      ? { organizationId }
+      : "skip"
+  );
   const accounts = accountsData as AwsAccount[] | undefined;
   
   // Mutations
@@ -228,6 +266,55 @@ export function BudgetsPage() {
   }, []);
   
   const isLoading = budgets === undefined || accounts === undefined;
+
+  // Show loading state while waiting for authentication or organization
+  if (isSessionPending || (isAuthenticated && !isOrgReady)) {
+    return (
+      <Center h="calc(100vh - 120px)" data-testid="budgets-page-loading">
+        <Stack align="center" gap="md">
+          <Loader size="lg" />
+          <Text c="dimmed">Loading...</Text>
+        </Stack>
+      </Center>
+    );
+  }
+
+  // Show message if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <Center h="calc(100vh - 120px)" data-testid="budgets-page-unauthenticated">
+        <Paper p="xl" ta="center" withBorder>
+          <IconUser size={48} style={{ opacity: 0.5 }} />
+          <Text size="lg" mt="md">
+            Please sign in to continue
+          </Text>
+          <Text size="sm" c="dimmed" mt="xs">
+            You need to be signed in to manage budgets.
+          </Text>
+          <Button component="a" href="/login" mt="md">
+            Sign In
+          </Button>
+        </Paper>
+      </Center>
+    );
+  }
+
+  // Show message if user has no organization (skip in test mode)
+  if (!IS_TEST_MODE && !isLoadingOrg && !activeOrganization) {
+    return (
+      <Center h="calc(100vh - 120px)" data-testid="budgets-page-no-org">
+        <Paper p="xl" ta="center" withBorder>
+          <IconCloud size={48} style={{ opacity: 0.5 }} />
+          <Text size="lg" mt="md">
+            No Organization Found
+          </Text>
+          <Text size="sm" c="dimmed" mt="xs">
+            You need to be a member of an organization to manage budgets.
+          </Text>
+        </Paper>
+      </Center>
+    );
+  }
 
   return (
     <Container data-testid="budgets-page" size="xl" py="xl">
@@ -682,6 +769,6 @@ export function BudgetsPage() {
       </Modal>
     </Container>
   );
-}
+});
 
 export default BudgetsPage;

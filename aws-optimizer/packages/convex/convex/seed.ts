@@ -776,6 +776,125 @@ function getSeedActivityLogs(): SeedActivityLog[] {
 // ============================================================================
 
 /**
+ * Create a test admin user directly in the database.
+ * Use this for development/testing when you need a quick admin user.
+ * 
+ * Usage: npx convex run seed:createTestAdminUser
+ * Or with custom values: npx convex run seed:createTestAdminUser '{"email": "admin@test.com", "name": "Admin User"}'
+ */
+export const createTestAdminUser = mutation({
+  args: {
+    email: v.optional(v.string()),
+    name: v.optional(v.string()),
+    createOrganization: v.optional(v.boolean()),
+    organizationName: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const email = args.email || "admin@test.com";
+    const name = args.name || "Test Admin";
+    const createOrg = args.createOrganization !== false; // Default to true
+    const orgName = args.organizationName || "Test Organization";
+
+    // Check if user already exists
+    const existingUser = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .first();
+
+    if (existingUser) {
+      return {
+        success: false,
+        message: `User with email "${email}" already exists`,
+        userId: existingUser._id,
+        user: existingUser,
+      };
+    }
+
+    // Create the admin user
+    const userId = await ctx.db.insert("users", {
+      email,
+      name,
+      role: "admin",
+      status: "active",
+      emailVerified: true,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    let organizationId: Id<"organizations"> | null = null;
+
+    // Optionally create an organization for the user
+    if (createOrg) {
+      const slug = orgName.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+      
+      // Check if org with this slug exists
+      const existingOrg = await ctx.db
+        .query("organizations")
+        .withIndex("by_slug", (q) => q.eq("slug", slug))
+        .first();
+
+      if (!existingOrg) {
+        organizationId = await ctx.db.insert("organizations", {
+          name: orgName,
+          slug,
+          plan: "professional",
+          settings: {
+            enableNotifications: true,
+            maxUsers: 10,
+          },
+          createdAt: now,
+          updatedAt: now,
+        });
+
+        // Add user as owner of the organization
+        await ctx.db.insert("orgMembers", {
+          organizationId,
+          userId,
+          role: "owner",
+          createdAt: now,
+          updatedAt: now,
+        });
+      } else {
+        organizationId = existingOrg._id;
+        // Check if user is already a member
+        const existingMembership = await ctx.db
+          .query("orgMembers")
+          .withIndex("by_org_user", (q) => q.eq("organizationId", organizationId!).eq("userId", userId))
+          .first();
+
+        if (!existingMembership) {
+          await ctx.db.insert("orgMembers", {
+            organizationId,
+            userId,
+            role: "owner",
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+      }
+    }
+
+    return {
+      success: true,
+      message: `Test admin user created successfully`,
+      userId,
+      organizationId,
+      user: {
+        email,
+        name,
+        role: "admin",
+        status: "active",
+      },
+      credentials: {
+        email,
+        password: "(no password - use TEST_MODE=true or sign up via auth)",
+      },
+    };
+  },
+});
+
+/**
  * Check if seed data already exists.
  */
 export const hasSeedData = query({
