@@ -4,7 +4,7 @@
  * Central export point for AI agent and related functionality.
  */
 
-export { awsCostAgent, AWS_COST_AGENT_CONFIG } from "./awsCostAgent";
+export { awsCostAgent, AWS_COST_AGENT_CONFIG, AWS_COST_AGENT_TOOLS } from "./awsCostAgent";
 
 // AWS Command Tools (US-015)
 export {

@@ -13,6 +13,7 @@ import { mutation, query } from "./_generated/server";
 import { getUserOrgId } from "./authHelpers";
 import { isTestMode } from "./functions";
 import type { Id } from "./_generated/dataModel";
+import { internal } from "./_generated/api";
 
 // Report type validator
 const reportTypeValidator = v.union(
@@ -83,7 +84,50 @@ export const list = query({
       downloadUrl: report.fileUrl || null,
       createdAt: report.createdAt,
       completedAt: report.generatedAt || null,
+      hasContent: !!report.content,
+      errorMessage: report.errorMessage,
+      // Progress tracking fields
+      progressStep: report.progressStep,
+      progressMessage: report.progressMessage,
+      progressPercent: report.progressPercent,
     }));
+  },
+});
+
+/**
+ * Get a single report by ID with full content.
+ */
+export const get = query({
+  args: {
+    reportId: v.id("reports"),
+  },
+  handler: async (ctx, args) => {
+    const report = await ctx.db.get(args.reportId);
+    if (!report) {
+      return null;
+    }
+
+    return {
+      _id: report._id,
+      name: report.title,
+      type: report.type === "cost_analysis" ? "summary" 
+          : report.type === "savings_summary" ? "detailed"
+          : report.type === "recommendation_summary" ? "recommendation"
+          : report.type === "executive_summary" ? "comparison"
+          : "summary",
+      format: "pdf" as const,
+      status: report.status,
+      content: report.content,
+      downloadUrl: report.fileUrl || null,
+      createdAt: report.createdAt,
+      completedAt: report.generatedAt || null,
+      errorMessage: report.errorMessage,
+      awsAccountIds: report.awsAccountIds,
+      // Progress tracking fields
+      progressStep: report.progressStep,
+      progressMessage: report.progressMessage,
+      progressPercent: report.progressPercent,
+    };
   },
 });
 
@@ -106,6 +150,7 @@ export const listScheduled = query({
 /**
  * Generate a new report.
  * Accepts organizationId as parameter for proper multi-org support.
+ * Now triggers AI agent to generate report content.
  */
 export const generate = mutation({
   args: {
@@ -113,6 +158,7 @@ export const generate = mutation({
     name: v.string(),
     type: reportTypeValidator,
     format: reportFormatValidator,
+    awsAccountIds: v.optional(v.array(v.id("awsAccounts"))),
   },
   handler: async (ctx, args) => {
     // In test mode, use provided org ID or fall back to first available org
@@ -141,18 +187,25 @@ export const generate = mutation({
                      : args.type === "recommendation" ? "recommendation_summary"
                      : "executive_summary";
 
+    // Insert the report record
     const reportId = await ctx.db.insert("reports", {
       organizationId,
       type: schemaType,
       title: args.name,
       status: "pending",
+      awsAccountIds: args.awsAccountIds,
       createdAt: now,
       updatedAt: now,
     });
 
-    // In a real implementation, this would trigger an async job to generate the report
-    // For now, simulate by setting to completed after a short delay
-    // This would be handled by a Convex action or scheduled function
+    // Schedule the AI agent to generate the report content
+    await ctx.scheduler.runAfter(0, internal.ai.reportGeneration.generateReport, {
+      reportId,
+      organizationId,
+      reportType: schemaType,
+      reportTitle: args.name,
+      awsAccountIds: args.awsAccountIds,
+    });
 
     return { reportId };
   },

@@ -14,6 +14,8 @@
 import { Agent } from "@convex-dev/agent";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { components } from "../_generated/api";
+import { AWS_COMMAND_TOOLS } from "./tools/awsCommands";
+import { ANALYSIS_TOOLS } from "./tools/analysis";
 
 // Initialize OpenRouter with API key from environment
 const openrouter = createOpenRouter({
@@ -129,20 +131,39 @@ export const AWS_COST_AGENT_CONFIG = {
 };
 
 /**
+ * All tools available to the AWS Cost Optimizer Agent.
+ * 
+ * AWS Command Tools:
+ * - aws_listAccounts: List connected AWS accounts
+ * - aws_executeCommand: Execute arbitrary AWS CLI commands
+ * - aws_getCostData: Query Cost Explorer data
+ * - aws_listResources: List EC2, RDS, S3, Lambda, etc.
+ * - aws_getReservations: Get RI and Savings Plan data
+ * 
+ * Analysis Tools:
+ * - analysis_saveCostSnapshot: Persist cost data
+ * - analysis_saveResource: Persist discovered resources
+ * - recommendation_save: Persist recommendations
+ * - analysis_generateReport: Create report records
+ */
+export const AWS_COST_AGENT_TOOLS = {
+  ...AWS_COMMAND_TOOLS,
+  ...ANALYSIS_TOOLS,
+};
+
+/**
  * AWS Cost Optimizer Agent
  *
  * This agent is configured with:
  * - OpenRouter with anthropic/claude-sonnet-4 model
  * - maxSteps: 100 for complex multi-step workflows
  * - Comprehensive system instructions for AWS cost optimization
- *
- * Note: Tools are defined but not yet integrated due to type complexity.
- * The agent can still respond to queries about AWS cost optimization.
+ * - Full access to AWS CLI tools via sandbox and analysis tools
  */
 export const awsCostAgent = new Agent(components.agent, {
   name: AWS_COST_AGENT_CONFIG.name,
   languageModel: openrouter(MODEL_ID),
   maxSteps: AWS_COST_AGENT_CONFIG.maxSteps,
   instructions: AWS_COST_AGENT_CONFIG.instructions,
-  tools: {},
+  tools: AWS_COST_AGENT_TOOLS,
 });

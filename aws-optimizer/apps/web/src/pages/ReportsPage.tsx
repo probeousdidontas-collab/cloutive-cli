@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
+import { pdf } from "@react-pdf/renderer";
 import {
   Container,
   Paper,
@@ -23,6 +24,11 @@ import {
   MultiSelect,
   Card,
   Center,
+  ScrollArea,
+  TypographyStylesProvider,
+  Progress,
+  RingProgress,
+  ThemeIcon,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import {
@@ -41,7 +47,12 @@ import {
   IconFileTypeCsv,
   IconUser,
   IconCloud,
+  IconEye,
+  IconServer,
+  IconFileExport,
 } from "@tabler/icons-react";
+import { marked } from "marked";
+import { ReportPdfDocument } from "../components/ReportPdfDocument";
 import { useQuery, useMutation } from "convex/react";
 import { observer } from "mobx-react-lite";
 import { api } from "@aws-optimizer/convex/convex/_generated/api";
@@ -62,7 +73,37 @@ interface Report {
   downloadUrl: string | null;
   createdAt: number;
   completedAt: number | null;
-  error?: string;
+  hasContent?: boolean;
+  errorMessage?: string;
+  // Progress tracking
+  progressStep?: number;
+  progressMessage?: string;
+  progressPercent?: number;
+}
+
+interface ReportDetail {
+  _id: string;
+  name: string;
+  type: ReportType;
+  format: ReportFormat;
+  status: ReportStatus;
+  content?: string;
+  downloadUrl: string | null;
+  createdAt: number;
+  completedAt: number | null;
+  errorMessage?: string;
+  awsAccountIds?: string[];
+  // Progress tracking
+  progressStep?: number;
+  progressMessage?: string;
+  progressPercent?: number;
+}
+
+interface AwsAccount {
+  _id: string;
+  name: string;
+  accountNumber: string;
+  status: string;
 }
 
 interface ScheduledReport {
@@ -173,11 +214,14 @@ export const ReportsPage = observer(function ReportsPage() {
   // Modal states
   const [generateModalOpened, { open: openGenerateModal, close: closeGenerateModal }] = useDisclosure(false);
   const [scheduleModalOpened, { open: openScheduleModal, close: closeScheduleModal }] = useDisclosure(false);
+  const [detailModalOpened, { open: openDetailModal, close: closeDetailModal }] = useDisclosure(false);
+  const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
 
   // Form states for generate modal
   const [reportName, setReportName] = useState("");
   const [reportType, setReportType] = useState<ReportType>("summary");
   const [reportFormat, setReportFormat] = useState<ReportFormat>("pdf");
+  const [selectedAwsAccountIds, setSelectedAwsAccountIds] = useState<string[]>([]);
 
   // Form states for schedule modal
   const [scheduleName, setScheduleName] = useState("");
@@ -210,8 +254,25 @@ export const ReportsPage = observer(function ReportsPage() {
         : { organizationId: organizationId! }
       : "skip"
   );
+  
+  // Fetch AWS accounts for the organization
+  const awsAccountsData = useQuery(
+    api.awsAccounts.listByOrganization,
+    shouldQueryReports && organizationId
+      ? { organizationId: organizationId }
+      : "skip"
+  );
+  
+  // Fetch selected report details
+  const reportDetailData = useQuery(
+    api.reports.get,
+    selectedReportId ? { reportId: selectedReportId as any } : "skip"
+  );
+  
   const reports = reportsData as Report[] | undefined;
   const scheduledReports = scheduledReportsData as ScheduledReport[] | undefined;
+  const awsAccounts = awsAccountsData as AwsAccount[] | undefined;
+  const reportDetail = reportDetailData as ReportDetail | null | undefined;
 
   // Mutations
   const generateReport = useMutation(api.reports.generate);
@@ -257,11 +318,23 @@ export const ReportsPage = observer(function ReportsPage() {
     setSelectedStatuses([]);
   }, []);
 
+  // AWS account options for the select
+  const awsAccountOptions = useMemo(() => {
+    if (!awsAccounts) return [];
+    return awsAccounts
+      .filter((acc) => acc.status === "active")
+      .map((acc) => ({
+        value: acc._id,
+        label: `${acc.name} (${acc.accountNumber})`,
+      }));
+  }, [awsAccounts]);
+
   // Reset generate form
   const resetGenerateForm = useCallback(() => {
     setReportName("");
     setReportType("summary");
     setReportFormat("pdf");
+    setSelectedAwsAccountIds([]);
   }, []);
 
   // Reset schedule form
@@ -274,13 +347,66 @@ export const ReportsPage = observer(function ReportsPage() {
 
   // Handle generate report
   const handleGenerateReport = useCallback(async () => {
+    const awsAccountIdsArg = selectedAwsAccountIds.length > 0 ? selectedAwsAccountIds : undefined;
     const args = IS_TEST_MODE
-      ? { name: reportName, type: reportType, format: reportFormat }
-      : { organizationId: organizationId!, name: reportName, type: reportType, format: reportFormat };
+      ? { name: reportName, type: reportType, format: reportFormat, awsAccountIds: awsAccountIdsArg as any }
+      : { organizationId: organizationId!, name: reportName, type: reportType, format: reportFormat, awsAccountIds: awsAccountIdsArg as any };
     await generateReport(args);
     closeGenerateModal();
     resetGenerateForm();
-  }, [reportName, reportType, reportFormat, organizationId, generateReport, closeGenerateModal, resetGenerateForm]);
+  }, [reportName, reportType, reportFormat, selectedAwsAccountIds, organizationId, generateReport, closeGenerateModal, resetGenerateForm]);
+
+  // Handle view report
+  const handleViewReport = useCallback((reportId: string) => {
+    setSelectedReportId(reportId);
+    openDetailModal();
+  }, [openDetailModal]);
+
+  // Handle close detail modal
+  const handleCloseDetailModal = useCallback(() => {
+    closeDetailModal();
+    setSelectedReportId(null);
+  }, [closeDetailModal]);
+
+  // Render markdown content as HTML (synchronous)
+  const renderedContent = useMemo(() => {
+    if (!reportDetail?.content) return "";
+    return marked.parse(reportDetail.content, { async: false }) as string;
+  }, [reportDetail?.content]);
+
+  // PDF export state
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+
+  // Handle PDF export
+  const handleExportPdf = useCallback(async () => {
+    if (!reportDetail?.content) return;
+
+    setIsExportingPdf(true);
+    try {
+      const blob = await pdf(
+        <ReportPdfDocument
+          title={reportDetail.name}
+          content={reportDetail.content}
+          reportType={reportDetail.type}
+          generatedAt={reportDetail.completedAt || undefined}
+        />
+      ).toBlob();
+
+      // Create download link
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${reportDetail.name.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Failed to export PDF:", error);
+    } finally {
+      setIsExportingPdf(false);
+    }
+  }, [reportDetail]);
 
   // Handle create schedule
   const handleCreateSchedule = useCallback(async () => {
@@ -509,7 +635,39 @@ export const ReportsPage = observer(function ReportsPage() {
                             {report.status}
                           </Badge>
                           {report.status === "generating" && (
-                            <Loader data-testid="generating-indicator" size="xs" />
+                            <Tooltip
+                              label={
+                                <Stack gap={4}>
+                                  <Text size="xs" fw={500}>
+                                    {report.progressMessage || "Generating..."}
+                                  </Text>
+                                  <Progress
+                                    value={report.progressPercent || 0}
+                                    size="xs"
+                                    color="blue"
+                                    animated
+                                    w={150}
+                                  />
+                                  <Text size="xs" c="dimmed">
+                                    {report.progressPercent || 0}% complete
+                                  </Text>
+                                </Stack>
+                              }
+                              multiline
+                              w={180}
+                            >
+                              <Group gap={4}>
+                                <RingProgress
+                                  data-testid="generating-indicator"
+                                  size={24}
+                                  thickness={3}
+                                  sections={[{ value: report.progressPercent || 0, color: "blue" }]}
+                                />
+                                <Text size="xs" c="dimmed">
+                                  {report.progressPercent || 0}%
+                                </Text>
+                              </Group>
+                            </Tooltip>
                           )}
                         </Group>
                       </Table.Td>
@@ -523,19 +681,40 @@ export const ReportsPage = observer(function ReportsPage() {
                         </Text>
                       </Table.Td>
                       <Table.Td>
-                        {report.status === "completed" && report.downloadUrl && (
-                          <Tooltip label="Download report">
-                            <Anchor
-                              href={report.downloadUrl}
-                              target="_blank"
-                              aria-label="Download"
-                            >
-                              <ActionIcon variant="light" color="blue">
-                                <IconDownload size={16} />
+                        <Group gap="xs">
+                          {report.status === "completed" && report.hasContent && (
+                            <Tooltip label="View report">
+                              <ActionIcon
+                                variant="light"
+                                color="green"
+                                onClick={() => handleViewReport(report._id)}
+                                aria-label="View"
+                              >
+                                <IconEye size={16} />
                               </ActionIcon>
-                            </Anchor>
-                          </Tooltip>
-                        )}
+                            </Tooltip>
+                          )}
+                          {report.status === "completed" && report.downloadUrl && (
+                            <Tooltip label="Download report">
+                              <Anchor
+                                href={report.downloadUrl}
+                                target="_blank"
+                                aria-label="Download"
+                              >
+                                <ActionIcon variant="light" color="blue">
+                                  <IconDownload size={16} />
+                                </ActionIcon>
+                              </Anchor>
+                            </Tooltip>
+                          )}
+                          {report.status === "failed" && report.errorMessage && (
+                            <Tooltip label={report.errorMessage}>
+                              <ActionIcon variant="light" color="red" aria-label="View error">
+                                <IconAlertCircle size={16} />
+                              </ActionIcon>
+                            </Tooltip>
+                          )}
+                        </Group>
                       </Table.Td>
                     </Table.Tr>
                   ))}
@@ -680,6 +859,26 @@ export const ReportsPage = observer(function ReportsPage() {
             </Radio.Group>
           </Box>
 
+          <Box data-testid="aws-account-selector">
+            <MultiSelect
+              label="AWS Accounts"
+              description="Select specific accounts to analyze, or leave empty to analyze all"
+              placeholder={awsAccountOptions.length > 0 ? "All accounts" : "No accounts available"}
+              data={awsAccountOptions}
+              value={selectedAwsAccountIds}
+              onChange={setSelectedAwsAccountIds}
+              clearable
+              searchable
+              leftSection={<IconServer size={16} />}
+              disabled={awsAccountOptions.length === 0}
+            />
+            {awsAccountOptions.length === 0 && (
+              <Text size="xs" c="dimmed" mt={4}>
+                No AWS accounts connected. Connect accounts in the AWS Accounts page first.
+              </Text>
+            )}
+          </Box>
+
           <Divider />
 
           <Group justify="flex-end" gap="sm">
@@ -785,6 +984,148 @@ export const ReportsPage = observer(function ReportsPage() {
             </Button>
           </Group>
         </Stack>
+      </Modal>
+
+      {/* Report Detail Modal */}
+      <Modal
+        opened={detailModalOpened}
+        onClose={handleCloseDetailModal}
+        title={reportDetail?.name || "Report Details"}
+        size="xl"
+        data-testid="report-detail-modal"
+      >
+        {!reportDetail ? (
+          <Center py="xl">
+            <Loader />
+          </Center>
+        ) : reportDetail.status === "failed" ? (
+          <Stack align="center" py="xl">
+            <IconAlertCircle size={48} color="red" style={{ opacity: 0.6 }} />
+            <Text c="red" fw={500}>Report Generation Failed</Text>
+            <Text c="dimmed" ta="center">
+              {reportDetail.errorMessage || "An unknown error occurred during report generation."}
+            </Text>
+            <Button variant="light" onClick={handleCloseDetailModal} mt="md">
+              Close
+            </Button>
+          </Stack>
+        ) : reportDetail.status === "generating" || reportDetail.status === "pending" ? (
+          <Stack align="center" py="xl" gap="lg">
+            {/* Progress Ring */}
+            <RingProgress
+              size={120}
+              thickness={8}
+              roundCaps
+              sections={[{ value: reportDetail.progressPercent || 0, color: "blue" }]}
+              label={
+                <Center>
+                  <Text size="lg" fw={700} c="blue">
+                    {reportDetail.progressPercent || 0}%
+                  </Text>
+                </Center>
+              }
+            />
+            
+            {/* Progress Text */}
+            <Stack align="center" gap="xs">
+              <Text fw={600} size="lg">
+                {reportDetail.progressMessage || "Generating Report..."}
+              </Text>
+              <Text c="dimmed" size="sm">
+                Step {reportDetail.progressStep || 1} of 5
+              </Text>
+            </Stack>
+
+            {/* Progress Bar */}
+            <Box w="100%" maw={400}>
+              <Progress
+                value={reportDetail.progressPercent || 0}
+                size="lg"
+                radius="xl"
+                color="blue"
+                animated
+                striped
+              />
+              <Text ta="center" size="sm" c="dimmed" mt="xs">
+                {reportDetail.progressPercent || 0}% complete
+              </Text>
+            </Box>
+
+            {/* Step Indicators */}
+            <Group gap="xs" mt="md">
+              {[1, 2, 3, 4, 5].map((step) => (
+                <Tooltip
+                  key={step}
+                  label={
+                    step === 1 ? "Initializing" :
+                    step === 2 ? "Fetching accounts" :
+                    step === 3 ? "Preparing analysis" :
+                    step === 4 ? "AI analysis" :
+                    "Finalizing"
+                  }
+                >
+                  <ThemeIcon
+                    size="sm"
+                    radius="xl"
+                    color={step <= (reportDetail.progressStep || 1) ? "blue" : "gray"}
+                    variant={step === reportDetail.progressStep ? "filled" : "light"}
+                  >
+                    {step <= (reportDetail.progressStep || 1) ? (
+                      step < (reportDetail.progressStep || 1) ? (
+                        <IconCheck size={12} />
+                      ) : (
+                        <Text size="xs" fw={600}>{step}</Text>
+                      )
+                    ) : (
+                      <Text size="xs">{step}</Text>
+                    )}
+                  </ThemeIcon>
+                </Tooltip>
+              ))}
+            </Group>
+
+            <Text c="dimmed" ta="center" size="sm" mt="md">
+              The AI agent is analyzing your AWS accounts and generating the report.
+              This may take a few minutes.
+            </Text>
+          </Stack>
+        ) : reportDetail.content ? (
+          <Stack gap="md">
+            <Group justify="space-between" align="center">
+              <Group gap="xs">
+                <Badge color={getTypeColor(reportDetail.type)} variant="light">
+                  {reportDetail.type}
+                </Badge>
+                {reportDetail.completedAt && (
+                  <Text size="xs" c="dimmed">
+                    Generated {formatRelativeTime(reportDetail.completedAt)}
+                  </Text>
+                )}
+              </Group>
+              <Button
+                variant="light"
+                color="blue"
+                leftSection={<IconFileExport size={16} />}
+                onClick={handleExportPdf}
+                loading={isExportingPdf}
+                size="sm"
+              >
+                Export PDF
+              </Button>
+            </Group>
+            <Divider />
+            <ScrollArea h={500} type="auto">
+              <TypographyStylesProvider>
+                <div dangerouslySetInnerHTML={{ __html: renderedContent }} />
+              </TypographyStylesProvider>
+            </ScrollArea>
+          </Stack>
+        ) : (
+          <Stack align="center" py="xl">
+            <IconFileText size={48} style={{ opacity: 0.3 }} />
+            <Text c="dimmed">No content available for this report.</Text>
+          </Stack>
+        )}
       </Modal>
     </Container>
   );

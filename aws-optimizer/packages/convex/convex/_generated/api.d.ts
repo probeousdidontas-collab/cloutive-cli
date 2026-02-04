@@ -14,6 +14,7 @@ import type * as ai_awsCostAgent from "../ai/awsCostAgent.js";
 import type * as ai_chat from "../ai/chat.js";
 import type * as ai_index from "../ai/index.js";
 import type * as ai_mutations from "../ai/mutations.js";
+import type * as ai_reportGeneration from "../ai/reportGeneration.js";
 import type * as ai_threads from "../ai/threads.js";
 import type * as ai_tools_analysis from "../ai/tools/analysis.js";
 import type * as ai_tools_awsCommands from "../ai/tools/awsCommands.js";
@@ -55,6 +56,7 @@ declare const fullApi: ApiFromModules<{
   "ai/chat": typeof ai_chat;
   "ai/index": typeof ai_index;
   "ai/mutations": typeof ai_mutations;
+  "ai/reportGeneration": typeof ai_reportGeneration;
   "ai/threads": typeof ai_threads;
   "ai/tools/analysis": typeof ai_tools_analysis;
   "ai/tools/awsCommands": typeof ai_tools_awsCommands;

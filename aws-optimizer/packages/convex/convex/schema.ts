@@ -599,6 +599,20 @@ export default defineSchema({
     title: v.string(),
     status: reportStatusValidator,
 
+    // Generated content (markdown format)
+    content: v.optional(v.string()),
+
+    // AWS accounts covered by this report
+    awsAccountIds: v.optional(v.array(v.id("awsAccounts"))),
+
+    // Error message if generation failed
+    errorMessage: v.optional(v.string()),
+
+    // Progress tracking for real-time status updates
+    progressStep: v.optional(v.number()), // Current step number (1-5)
+    progressMessage: v.optional(v.string()), // Human-readable progress message
+    progressPercent: v.optional(v.number()), // Progress percentage (0-100)
+
     // File storage
     fileUrl: v.optional(v.string()), // URL to the generated report file
 
