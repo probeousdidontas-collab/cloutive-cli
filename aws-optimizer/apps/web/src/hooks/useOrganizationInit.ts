@@ -27,6 +27,52 @@ export function useOrganizationInit(isAuthenticated: boolean): void {
   // Track previous active org ID to detect changes
   const prevActiveOrgIdRef = useRef<string | null>(null);
 
+  // Resolve Better Auth org ID to Convex org ID
+  // Defined first so it can be used by fetchOrganizations
+  const resolveConvexOrgId = useCallback(async () => {
+    const activeOrg = organizationStore.activeOrganization;
+
+    if (!activeOrg?.id || !activeOrg?.name) {
+      runInAction(() => {
+        organizationStore.setConvexOrgId(null);
+        organizationStore.setIsResolvingConvexId(false);
+      });
+      return;
+    }
+
+    // In test mode, use a mock ID
+    if (IS_TEST_MODE) {
+      runInAction(() => {
+        organizationStore.setConvexOrgId("test-org-id" as Id<"organizations">);
+        organizationStore.setIsResolvingConvexId(false);
+      });
+      return;
+    }
+
+    runInAction(() => {
+      organizationStore.setIsResolvingConvexId(true);
+    });
+
+    try {
+      const orgId = await getOrCreateOrg({
+        betterAuthOrgId: activeOrg.id,
+        name: activeOrg.name,
+        slug: activeOrg.slug || undefined,
+      });
+      runInAction(() => {
+        organizationStore.setConvexOrgId(orgId);
+        organizationStore.setIsResolvingConvexId(false);
+      });
+    } catch (error) {
+      console.error("Failed to resolve organization:", error);
+      runInAction(() => {
+        organizationStore.setConvexOrgId(null);
+        organizationStore.setIsResolvingConvexId(false);
+        organizationStore.setError("Failed to resolve organization");
+      });
+    }
+  }, [organizationStore, getOrCreateOrg]);
+
   // Fetch organizations and active organization from Better Auth
   const fetchOrganizations = useCallback(async () => {
     if (!isAuthenticated && !IS_TEST_MODE) {
@@ -135,6 +181,13 @@ export function useOrganizationInit(isAuthenticated: boolean): void {
 
       // Store the active org ID for tracking changes
       prevActiveOrgIdRef.current = activeOrg?.id ?? null;
+
+      // Immediately resolve Convex org ID if we have an active org
+      // This ensures the resolution happens right after fetching, not in a separate effect
+      // (MobX updates are synchronous, so resolveConvexOrgId will see the updated activeOrganization)
+      if (activeOrg?.id && activeOrg?.name) {
+        await resolveConvexOrgId();
+      }
     } catch (error) {
       console.error("Failed to fetch organizations:", error);
       runInAction(() => {
@@ -144,68 +197,24 @@ export function useOrganizationInit(isAuthenticated: boolean): void {
         organizationStore.setIsLoading(false);
       });
     }
-  }, [isAuthenticated, organizationStore]);
-
-  // Resolve Better Auth org ID to Convex org ID
-  const resolveConvexOrgId = useCallback(async () => {
-    const activeOrg = organizationStore.activeOrganization;
-
-    if (!activeOrg?.id || !activeOrg?.name) {
-      runInAction(() => {
-        organizationStore.setConvexOrgId(null);
-        organizationStore.setIsResolvingConvexId(false);
-      });
-      return;
-    }
-
-    // In test mode, use a mock ID
-    if (IS_TEST_MODE) {
-      runInAction(() => {
-        organizationStore.setConvexOrgId("test-org-id" as Id<"organizations">);
-        organizationStore.setIsResolvingConvexId(false);
-      });
-      return;
-    }
-
-    runInAction(() => {
-      organizationStore.setIsResolvingConvexId(true);
-    });
-
-    try {
-      const orgId = await getOrCreateOrg({
-        betterAuthOrgId: activeOrg.id,
-        name: activeOrg.name,
-        slug: activeOrg.slug || undefined,
-      });
-      runInAction(() => {
-        organizationStore.setConvexOrgId(orgId);
-        organizationStore.setIsResolvingConvexId(false);
-      });
-    } catch (error) {
-      console.error("Failed to resolve organization:", error);
-      runInAction(() => {
-        organizationStore.setConvexOrgId(null);
-        organizationStore.setIsResolvingConvexId(false);
-        organizationStore.setError("Failed to resolve organization");
-      });
-    }
-  }, [organizationStore, getOrCreateOrg]);
+  }, [isAuthenticated, organizationStore, resolveConvexOrgId]);
 
   // Initialize on mount and when authentication changes
   useEffect(() => {
     fetchOrganizations();
   }, [fetchOrganizations]);
 
-  // Resolve Convex org ID when active organization changes
+  // Resolve Convex org ID when active organization changes (e.g., user switches orgs)
   useEffect(() => {
     const currentOrgId = organizationStore.activeOrganization?.id ?? null;
 
     // Only resolve if we have an active org and it's different from previous
-    // or if we haven't resolved yet (convexOrgId is null but we have an active org)
+    // This handles the case when user switches organizations after initial load
     if (
       !organizationStore.isLoading &&
       organizationStore.activeOrganization &&
-      (organizationStore.convexOrgId === null || currentOrgId !== prevActiveOrgIdRef.current)
+      organizationStore.convexOrgId === null &&
+      currentOrgId !== prevActiveOrgIdRef.current
     ) {
       prevActiveOrgIdRef.current = currentOrgId;
       resolveConvexOrgId();

@@ -17,6 +17,156 @@ import { internal } from "../_generated/api";
 import { awsCostAgent } from "./awsCostAgent";
 
 // ============================================================================
+// Error Classification
+// ============================================================================
+
+/**
+ * Error types for report generation failures.
+ * These help the UI display actionable error messages.
+ */
+type ErrorCategory = 
+  | "configuration" // Missing API keys, env vars
+  | "authentication" // Auth/permission issues
+  | "no_accounts" // No AWS accounts connected
+  | "aws_access" // AWS API/credential issues
+  | "ai_agent" // AI model/generation errors
+  | "timeout" // Request took too long
+  | "unknown"; // Unclassified errors
+
+interface ClassifiedError {
+  category: ErrorCategory;
+  message: string;
+  details?: string;
+  suggestion?: string;
+}
+
+/**
+ * Classify an error and provide a user-friendly message with suggestions.
+ */
+function classifyError(error: unknown): ClassifiedError {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  const errorString = errorMessage.toLowerCase();
+
+  // Check for API key / configuration errors
+  if (
+    errorString.includes("api key") ||
+    errorString.includes("apikey") ||
+    errorString.includes("unauthorized") ||
+    errorString.includes("authentication") ||
+    errorString.includes("invalid_api_key") ||
+    errorString.includes("openrouter")
+  ) {
+    return {
+      category: "configuration",
+      message: "AI service not configured",
+      details: "The OPENROUTER_API_KEY environment variable is missing or invalid.",
+      suggestion: "Please set the OPENROUTER_API_KEY in your Convex dashboard environment variables. Get your API key from https://openrouter.ai/keys",
+    };
+  }
+
+  // Check for rate limiting
+  if (
+    errorString.includes("rate limit") ||
+    errorString.includes("too many requests") ||
+    errorString.includes("429")
+  ) {
+    return {
+      category: "ai_agent",
+      message: "AI service rate limited",
+      details: "Too many requests to the AI service. Please wait a moment.",
+      suggestion: "Wait a few minutes and try again. Consider upgrading your OpenRouter plan if this persists.",
+    };
+  }
+
+  // Check for timeout errors
+  if (
+    errorString.includes("timeout") ||
+    errorString.includes("timed out") ||
+    errorString.includes("deadline")
+  ) {
+    return {
+      category: "timeout",
+      message: "Report generation timed out",
+      details: "The AI agent took too long to analyze your AWS accounts.",
+      suggestion: "Try generating a report with fewer AWS accounts, or choose a simpler report type like 'Executive Summary'.",
+    };
+  }
+
+  // Check for AWS credential/access errors
+  if (
+    errorString.includes("aws") &&
+    (errorString.includes("credential") ||
+      errorString.includes("access denied") ||
+      errorString.includes("not authorized"))
+  ) {
+    return {
+      category: "aws_access",
+      message: "AWS access error",
+      details: "Unable to access AWS resources with the provided credentials.",
+      suggestion: "Verify your AWS account connections and ensure the IAM role has the necessary permissions.",
+    };
+  }
+
+  // Check for model errors
+  if (
+    errorString.includes("model") ||
+    errorString.includes("anthropic") ||
+    errorString.includes("claude") ||
+    errorString.includes("context length") ||
+    errorString.includes("max tokens")
+  ) {
+    return {
+      category: "ai_agent",
+      message: "AI model error",
+      details: errorMessage,
+      suggestion: "Try generating a simpler report or reducing the number of AWS accounts to analyze.",
+    };
+  }
+
+  // Check for network errors
+  if (
+    errorString.includes("network") ||
+    errorString.includes("connection") ||
+    errorString.includes("fetch failed") ||
+    errorString.includes("econnrefused")
+  ) {
+    return {
+      category: "ai_agent",
+      message: "Network connection error",
+      details: "Unable to connect to the AI service.",
+      suggestion: "Check your internet connection and try again. If the problem persists, the AI service may be temporarily unavailable.",
+    };
+  }
+
+  // Default unknown error
+  return {
+    category: "unknown",
+    message: "Report generation failed",
+    details: errorMessage,
+    suggestion: "Please try again. If the problem persists, contact support with the error details.",
+  };
+}
+
+/**
+ * Format a classified error into a storable error message.
+ */
+function formatErrorMessage(classified: ClassifiedError): string {
+  const parts = [
+    `[${classified.category.toUpperCase()}] ${classified.message}`,
+  ];
+  
+  if (classified.details) {
+    parts.push(`Details: ${classified.details}`);
+  }
+  
+  if (classified.suggestion) {
+    parts.push(`Suggestion: ${classified.suggestion}`);
+  }
+  
+  return parts.join(" | ");
+}
+
+// ============================================================================
 // Internal Mutations for Report Status Updates
 // ============================================================================
 
@@ -301,13 +451,28 @@ export const generateReport = internalAction({
   handler: async (ctx, args) => {
     const { reportId, organizationId, reportType, reportTitle, awsAccountIds } = args;
 
+    console.log(`[ReportGeneration] Starting report generation for report ${reportId}, type: ${reportType}`);
+
     try {
+      // Pre-flight check: Verify OPENROUTER_API_KEY is configured
+      if (!process.env.OPENROUTER_API_KEY) {
+        console.error("[ReportGeneration] OPENROUTER_API_KEY is not configured");
+        const classified = classifyError(new Error("OPENROUTER_API_KEY environment variable is not set"));
+        await ctx.runMutation(internal.ai.reportGeneration.updateReportFailed, {
+          reportId,
+          errorMessage: formatErrorMessage(classified),
+        });
+        return;
+      }
+
       // Step 1: Update status to generating
+      console.log(`[ReportGeneration] Step 1: Updating status to generating`);
       await ctx.runMutation(internal.ai.reportGeneration.updateReportStatusGenerating, {
         reportId,
       });
 
       // Step 2: Fetch AWS accounts
+      console.log(`[ReportGeneration] Step 2: Fetching AWS accounts for organization ${organizationId}`);
       await ctx.runMutation(internal.ai.reportGeneration.updateReportProgress, {
         reportId,
         progressStep: 2,
@@ -320,15 +485,24 @@ export const generateReport = internalAction({
         awsAccountIds,
       });
 
+      console.log(`[ReportGeneration] Found ${accounts?.length || 0} AWS accounts`);
+
       if (!accounts || accounts.length === 0) {
+        const classified: ClassifiedError = {
+          category: "no_accounts",
+          message: "No AWS accounts available",
+          details: "No active AWS accounts found for this organization.",
+          suggestion: "Connect at least one AWS account in the AWS Accounts page before generating reports.",
+        };
         await ctx.runMutation(internal.ai.reportGeneration.updateReportFailed, {
           reportId,
-          errorMessage: "No active AWS accounts found. Please connect at least one AWS account before generating reports.",
+          errorMessage: formatErrorMessage(classified),
         });
         return;
       }
 
       // Step 3: Building analysis prompt
+      console.log(`[ReportGeneration] Step 3: Building analysis prompt for ${accounts.length} account(s)`);
       await ctx.runMutation(internal.ai.reportGeneration.updateReportProgress, {
         reportId,
         progressStep: 3,
@@ -344,6 +518,7 @@ export const generateReport = internalAction({
       );
 
       // Step 4: Running AI agent analysis
+      console.log(`[ReportGeneration] Step 4: Starting AI agent analysis`);
       await ctx.runMutation(internal.ai.reportGeneration.updateReportProgress, {
         reportId,
         progressStep: 4,
@@ -351,11 +526,25 @@ export const generateReport = internalAction({
         progressPercent: 40,
       });
 
-      const { thread } = await awsCostAgent.createThread(ctx, {});
-      
-      const result = await thread.generateText(ctx, {
-        prompt,
-      });
+      let result;
+      try {
+        console.log(`[ReportGeneration] Creating AI agent thread...`);
+        const { thread } = await awsCostAgent.createThread(ctx, {});
+        
+        console.log(`[ReportGeneration] Running AI agent generateText...`);
+        result = await thread.generateText(ctx, {
+          prompt,
+        });
+        console.log(`[ReportGeneration] AI agent completed successfully`);
+      } catch (aiError) {
+        console.error(`[ReportGeneration] AI agent error:`, aiError);
+        const classified = classifyError(aiError);
+        await ctx.runMutation(internal.ai.reportGeneration.updateReportFailed, {
+          reportId,
+          errorMessage: formatErrorMessage(classified),
+        });
+        return;
+      }
 
       // Update progress after AI completes
       await ctx.runMutation(internal.ai.reportGeneration.updateReportProgress, {
@@ -368,26 +557,40 @@ export const generateReport = internalAction({
       const content = result.text;
 
       if (!content || content.trim().length === 0) {
+        console.error(`[ReportGeneration] AI agent returned empty content`);
+        const classified: ClassifiedError = {
+          category: "ai_agent",
+          message: "Empty report generated",
+          details: "The AI agent did not generate any content.",
+          suggestion: "Try again with a different report type or fewer AWS accounts.",
+        };
         await ctx.runMutation(internal.ai.reportGeneration.updateReportFailed, {
           reportId,
-          errorMessage: "AI agent did not generate any content. Please try again.",
+          errorMessage: formatErrorMessage(classified),
         });
         return;
       }
 
+      console.log(`[ReportGeneration] Generated content length: ${content.length} characters`);
+
       // Step 5: Update report with generated content
+      console.log(`[ReportGeneration] Step 5: Saving completed report`);
       await ctx.runMutation(internal.ai.reportGeneration.updateReportCompleted, {
         reportId,
         content,
       });
 
+      console.log(`[ReportGeneration] Report ${reportId} completed successfully`);
+
     } catch (error) {
-      // Handle errors
-      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred during report generation";
+      // Handle unexpected errors
+      console.error(`[ReportGeneration] Unexpected error:`, error);
+      const classified = classifyError(error);
       
       await ctx.runMutation(internal.ai.reportGeneration.updateReportFailed, {
         reportId,
-        errorMessage,
+        errorMessage: formatErrorMessage(classified),
+        errorCategory: classified.category,
       });
     }
   },

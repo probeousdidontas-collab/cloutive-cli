@@ -50,6 +50,12 @@ import {
   IconEye,
   IconServer,
   IconFileExport,
+  IconRefresh,
+  IconKey,
+  IconCloudOff,
+  IconRobot,
+  IconClockOff,
+  IconInfoCircle,
 } from "@tabler/icons-react";
 import { marked } from "marked";
 import { ReportPdfDocument } from "../components/ReportPdfDocument";
@@ -63,6 +69,22 @@ type ReportType = "summary" | "detailed" | "recommendation" | "comparison";
 type ReportFormat = "pdf" | "csv";
 type ReportStatus = "pending" | "generating" | "completed" | "failed";
 type ScheduleFrequency = "daily" | "weekly" | "monthly" | "quarterly";
+
+type ErrorCategory = 
+  | "configuration"
+  | "authentication" 
+  | "no_accounts"
+  | "aws_access"
+  | "ai_agent"
+  | "timeout"
+  | "unknown";
+
+interface ParsedError {
+  category: ErrorCategory;
+  message: string;
+  details?: string;
+  suggestion?: string;
+}
 
 interface Report {
   _id: string;
@@ -194,6 +216,74 @@ function formatFutureTime(timestamp: number): string {
   });
 }
 
+/**
+ * Parse a formatted error message from the backend.
+ * Expected format: "[CATEGORY] Message | Details: ... | Suggestion: ..."
+ */
+function parseErrorMessage(errorMessage?: string): ParsedError {
+  if (!errorMessage) {
+    return {
+      category: "unknown",
+      message: "An unknown error occurred",
+      suggestion: "Please try again or contact support.",
+    };
+  }
+
+  // Try to parse structured error format
+  const categoryMatch = errorMessage.match(/^\[([A-Z_]+)\]\s*(.+?)(?:\s*\||$)/);
+  const detailsMatch = errorMessage.match(/Details:\s*(.+?)(?:\s*\||$)/);
+  const suggestionMatch = errorMessage.match(/Suggestion:\s*(.+?)(?:\s*\||$)/);
+
+  if (categoryMatch) {
+    return {
+      category: categoryMatch[1].toLowerCase() as ErrorCategory,
+      message: categoryMatch[2].trim(),
+      details: detailsMatch?.[1]?.trim(),
+      suggestion: suggestionMatch?.[1]?.trim(),
+    };
+  }
+
+  // Fallback for unstructured error messages
+  return {
+    category: "unknown",
+    message: "Report generation failed",
+    details: errorMessage,
+    suggestion: "Please try again. If the problem persists, contact support.",
+  };
+}
+
+/**
+ * Get the icon for an error category.
+ */
+function getErrorIcon(category: ErrorCategory) {
+  const icons: Record<ErrorCategory, React.ReactNode> = {
+    configuration: <IconKey size={20} />,
+    authentication: <IconKey size={20} />,
+    no_accounts: <IconCloudOff size={20} />,
+    aws_access: <IconCloud size={20} />,
+    ai_agent: <IconRobot size={20} />,
+    timeout: <IconClockOff size={20} />,
+    unknown: <IconAlertCircle size={20} />,
+  };
+  return icons[category] || icons.unknown;
+}
+
+/**
+ * Get the color for an error category.
+ */
+function getErrorColor(category: ErrorCategory): string {
+  const colors: Record<ErrorCategory, string> = {
+    configuration: "orange",
+    authentication: "orange",
+    no_accounts: "yellow",
+    aws_access: "red",
+    ai_agent: "violet",
+    timeout: "blue",
+    unknown: "red",
+  };
+  return colors[category] || "red";
+}
+
 export const ReportsPage = observer(function ReportsPage() {
   const { data: session, isPending: isSessionPending } = useSession();
 
@@ -266,7 +356,7 @@ export const ReportsPage = observer(function ReportsPage() {
   // Fetch selected report details
   const reportDetailData = useQuery(
     api.reports.get,
-    selectedReportId ? { reportId: selectedReportId as any } : "skip"
+    selectedReportId ? { reportId: selectedReportId as unknown as Parameters<typeof api.reports.get>[0]["reportId"] } : "skip"
   );
   
   const reports = reportsData as Report[] | undefined;
@@ -348,10 +438,11 @@ export const ReportsPage = observer(function ReportsPage() {
   // Handle generate report
   const handleGenerateReport = useCallback(async () => {
     const awsAccountIdsArg = selectedAwsAccountIds.length > 0 ? selectedAwsAccountIds : undefined;
-    const args = IS_TEST_MODE
-      ? { name: reportName, type: reportType, format: reportFormat, awsAccountIds: awsAccountIdsArg as any }
-      : { organizationId: organizationId!, name: reportName, type: reportType, format: reportFormat, awsAccountIds: awsAccountIdsArg as any };
-    await generateReport(args);
+    if (IS_TEST_MODE) {
+      await generateReport({ name: reportName, type: reportType, format: reportFormat, awsAccountIds: awsAccountIdsArg });
+    } else {
+      await generateReport({ organizationId: organizationId!, name: reportName, type: reportType, format: reportFormat, awsAccountIds: awsAccountIdsArg });
+    }
     closeGenerateModal();
     resetGenerateForm();
   }, [reportName, reportType, reportFormat, selectedAwsAccountIds, organizationId, generateReport, closeGenerateModal, resetGenerateForm]);
@@ -634,6 +725,21 @@ export const ReportsPage = observer(function ReportsPage() {
                           >
                             {report.status}
                           </Badge>
+                          {report.status === "failed" && report.errorMessage && (
+                            <Tooltip 
+                              label={parseErrorMessage(report.errorMessage).message}
+                              multiline
+                              w={200}
+                            >
+                              <Badge
+                                size="xs"
+                                variant="light"
+                                color={getErrorColor(parseErrorMessage(report.errorMessage).category)}
+                              >
+                                {parseErrorMessage(report.errorMessage).category.replace("_", " ")}
+                              </Badge>
+                            </Tooltip>
+                          )}
                           {report.status === "generating" && (
                             <Tooltip
                               label={
@@ -707,9 +813,25 @@ export const ReportsPage = observer(function ReportsPage() {
                               </Anchor>
                             </Tooltip>
                           )}
-                          {report.status === "failed" && report.errorMessage && (
-                            <Tooltip label={report.errorMessage}>
-                              <ActionIcon variant="light" color="red" aria-label="View error">
+                          {report.status === "failed" && (
+                            <Tooltip 
+                              label={
+                                <Stack gap={4}>
+                                  <Text size="xs" fw={500}>Click to view details</Text>
+                                  <Text size="xs" c="dimmed" lineClamp={2}>
+                                    {parseErrorMessage(report.errorMessage).message}
+                                  </Text>
+                                </Stack>
+                              }
+                              multiline
+                              w={200}
+                            >
+                              <ActionIcon 
+                                variant="light" 
+                                color="red" 
+                                aria-label="View error"
+                                onClick={() => handleViewReport(report._id)}
+                              >
                                 <IconAlertCircle size={16} />
                               </ActionIcon>
                             </Tooltip>
@@ -999,16 +1121,125 @@ export const ReportsPage = observer(function ReportsPage() {
             <Loader />
           </Center>
         ) : reportDetail.status === "failed" ? (
-          <Stack align="center" py="xl">
-            <IconAlertCircle size={48} color="red" style={{ opacity: 0.6 }} />
-            <Text c="red" fw={500}>Report Generation Failed</Text>
-            <Text c="dimmed" ta="center">
-              {reportDetail.errorMessage || "An unknown error occurred during report generation."}
-            </Text>
-            <Button variant="light" onClick={handleCloseDetailModal} mt="md">
-              Close
-            </Button>
-          </Stack>
+          (() => {
+            const parsedError = parseErrorMessage(reportDetail.errorMessage);
+            return (
+              <Stack gap="lg" py="md">
+                {/* Error Header */}
+                <Card withBorder p="lg" radius="md" bg="red.0">
+                  <Group gap="md" align="flex-start">
+                    <ThemeIcon size="xl" radius="xl" color={getErrorColor(parsedError.category)} variant="light">
+                      {getErrorIcon(parsedError.category)}
+                    </ThemeIcon>
+                    <Stack gap={4} style={{ flex: 1 }}>
+                      <Text fw={600} size="lg" c="red.7">
+                        {parsedError.message}
+                      </Text>
+                      <Badge 
+                        size="sm" 
+                        variant="outline" 
+                        color={getErrorColor(parsedError.category)}
+                      >
+                        {parsedError.category.replace("_", " ").toUpperCase()}
+                      </Badge>
+                    </Stack>
+                  </Group>
+                </Card>
+
+                {/* Error Details */}
+                {parsedError.details && (
+                  <Card withBorder p="md" radius="md">
+                    <Group gap="xs" mb="xs">
+                      <IconInfoCircle size={16} style={{ opacity: 0.7 }} />
+                      <Text size="sm" fw={500} c="dimmed">Error Details</Text>
+                    </Group>
+                    <Text size="sm">
+                      {parsedError.details}
+                    </Text>
+                  </Card>
+                )}
+
+                {/* Suggestion */}
+                {parsedError.suggestion && (
+                  <Card withBorder p="md" radius="md" bg="blue.0">
+                    <Group gap="xs" mb="xs">
+                      <IconInfoCircle size={16} color="var(--mantine-color-blue-6)" />
+                      <Text size="sm" fw={500} c="blue.7">Suggested Action</Text>
+                    </Group>
+                    <Text size="sm" c="blue.9">
+                      {parsedError.suggestion}
+                    </Text>
+                  </Card>
+                )}
+
+                {/* Quick Actions based on error type */}
+                {parsedError.category === "configuration" && (
+                  <Card withBorder p="md" radius="md" bg="orange.0">
+                    <Stack gap="xs">
+                      <Text size="sm" fw={500} c="orange.7">Configuration Required</Text>
+                      <Text size="sm" c="dimmed">
+                        The AI service API key needs to be configured in your Convex dashboard.
+                      </Text>
+                      <Button
+                        component="a"
+                        href="https://dashboard.convex.dev"
+                        target="_blank"
+                        variant="light"
+                        color="orange"
+                        size="sm"
+                        leftSection={<IconKey size={14} />}
+                        mt="xs"
+                      >
+                        Open Convex Dashboard
+                      </Button>
+                    </Stack>
+                  </Card>
+                )}
+
+                {parsedError.category === "no_accounts" && (
+                  <Card withBorder p="md" radius="md" bg="yellow.0">
+                    <Stack gap="xs">
+                      <Text size="sm" fw={500} c="yellow.8">No AWS Accounts Connected</Text>
+                      <Text size="sm" c="dimmed">
+                        You need to connect at least one AWS account before generating reports.
+                      </Text>
+                      <Button
+                        component="a"
+                        href="/aws-accounts"
+                        variant="light"
+                        color="yellow"
+                        size="sm"
+                        leftSection={<IconCloud size={14} />}
+                        mt="xs"
+                      >
+                        Go to AWS Accounts
+                      </Button>
+                    </Stack>
+                  </Card>
+                )}
+
+                <Divider />
+
+                {/* Actions */}
+                <Group justify="flex-end" gap="sm">
+                  <Button variant="subtle" onClick={handleCloseDetailModal}>
+                    Close
+                  </Button>
+                  <Button
+                    variant="light"
+                    color="blue"
+                    leftSection={<IconRefresh size={16} />}
+                    onClick={() => {
+                      handleCloseDetailModal();
+                      openGenerateModal();
+                    }}
+                  >
+                    Try Again
+                  </Button>
+                </Group>
+              </Stack>
+            );
+          })()
         ) : reportDetail.status === "generating" || reportDetail.status === "pending" ? (
           <Stack align="center" py="xl" gap="lg">
             {/* Progress Ring */}
