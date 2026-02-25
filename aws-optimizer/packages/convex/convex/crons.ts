@@ -15,6 +15,7 @@ import { internalQuery, internalMutation, internalAction } from "./_generated/se
 import { internal, components } from "./_generated/api";
 import { ActionRetrier } from "@convex-dev/action-retrier";
 import type { Id, Doc } from "./_generated/dataModel";
+import { awsCostAgent } from "./ai/awsCostAgent";
 
 // Initialize action retrier for graceful failure handling
 const actionRetrier = new ActionRetrier(components.actionRetrier, {
@@ -193,6 +194,7 @@ export const updateAnalysisRunStatus = internalMutation({
       v.literal("completed"),
       v.literal("failed")
     ),
+    errorMessage: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -203,6 +205,10 @@ export const updateAnalysisRunStatus = internalMutation({
 
     if (args.status === "completed" || args.status === "failed") {
       updates.completedAt = now;
+    }
+
+    if (args.errorMessage) {
+      updates.errorMessage = args.errorMessage;
     }
 
     await ctx.db.patch(args.analysisRunId, updates);
@@ -243,6 +249,66 @@ export const recordUsageForAnalysis = internalMutation({
 // ============================================================================
 
 /**
+ * Build the prompt that tells the AI agent what to collect for a given account.
+ */
+function buildCostCollectionPrompt(
+  awsAccountId: string,
+  organizationId: string,
+): string {
+  const today = new Date();
+
+  // Build a 7-day backfill window to catch any gaps
+  const dates: string[] = [];
+  for (let i = 1; i <= 7; i++) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    dates.push(d.toISOString().split("T")[0]);
+  }
+
+  return `You are running a scheduled daily cost collection for AWS account ${awsAccountId} in organization ${organizationId}.
+
+## Step 1 — Collect Cost Data
+
+Use the aws_getCostData tool to fetch cost data for the following dates (grouped by SERVICE):
+${dates.map((d) => `- ${d}`).join("\n")}
+
+Then fetch the same dates grouped by REGION.
+
+For each day, call analysis_saveCostSnapshot with:
+- awsAccountId: "${awsAccountId}"
+- date: the YYYY-MM-DD date
+- totalCost: the total for that day
+- serviceBreakdown: the per-service costs
+- regionBreakdown: the per-region costs
+
+If a day has zero cost data or an error, skip it silently.
+
+## Step 2 — Discover Resources
+
+Use aws_listResources for the following resource types: EC2, RDS, S3.
+Pass awsAccountId: "${awsAccountId}".
+
+For each discovered resource, call analysis_saveResource with the resource details.
+
+## Step 3 — Generate Recommendations
+
+Based on the cost data and resources you discovered, generate actionable cost optimization recommendations.
+For each recommendation call recommendation_save with:
+- awsAccountId: "${awsAccountId}"
+- type: one of "rightsizing", "reserved_instance", "savings_plan", "unused_resource", "idle_resource", "storage_optimization", "network_optimization"
+- title: short descriptive title
+- description: detailed explanation
+- estimatedSavings: estimated monthly savings in dollars
+
+Focus on the highest-impact recommendations first. Generate at least 1 recommendation if any optimization opportunity exists.
+
+## Important
+- Do NOT make any changes to AWS resources — this is a read-only collection run.
+- If any tool call fails, log the error and continue with the next step.
+- Complete all three steps in order.`;
+}
+
+/**
  * Execute cost collection for a single AWS account.
  * This action is called by the cron job and uses ActionRetrier for reliability.
  */
@@ -254,6 +320,11 @@ export const executeCostCollection = internalAction({
   },
   handler: async (ctx, args) => {
     try {
+      // Pre-flight: verify OPENROUTER_API_KEY is set
+      if (!process.env.OPENROUTER_API_KEY) {
+        throw new Error("OPENROUTER_API_KEY environment variable is not set");
+      }
+
       // Update status to running
       await ctx.runMutation(internal.crons.updateAnalysisRunStatus, {
         analysisRunId: args.analysisRunId,
@@ -265,10 +336,19 @@ export const executeCostCollection = internalAction({
         organizationId: args.organizationId,
       });
 
-      // Get cost data for the past day
-      // In a full implementation, this would trigger the AI agent
-      // For now, we mark it as completed
-      // TODO: Integrate with awsCostAgent to run actual analysis
+      // Build the prompt for the AI agent
+      const prompt = buildCostCollectionPrompt(
+        args.awsAccountId,
+        args.organizationId,
+      );
+
+      // Run the AI agent (same pattern as reportGeneration.ts)
+      console.log(`[CostCollection] Creating AI agent thread for account ${args.awsAccountId}...`);
+      const { thread } = await awsCostAgent.createThread(ctx, {});
+
+      console.log(`[CostCollection] Running AI agent generateText...`);
+      await thread.generateText(ctx, { prompt });
+      console.log(`[CostCollection] AI agent completed for account ${args.awsAccountId}`);
 
       // Update status to completed
       await ctx.runMutation(internal.crons.updateAnalysisRunStatus, {
@@ -278,10 +358,14 @@ export const executeCostCollection = internalAction({
 
       return { success: true };
     } catch (error) {
-      // Update status to failed
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`[CostCollection] Failed for account ${args.awsAccountId}:`, errorMessage);
+
+      // Update status to failed with error message
       await ctx.runMutation(internal.crons.updateAnalysisRunStatus, {
         analysisRunId: args.analysisRunId,
         status: "failed",
+        errorMessage,
       });
 
       throw error; // Re-throw for ActionRetrier to handle

@@ -398,6 +398,9 @@ export default defineSchema({
     startedAt: v.number(),
     completedAt: v.optional(v.number()),
 
+    // Error details (for failed runs)
+    errorMessage: v.optional(v.string()),
+
     // Timestamps
     createdAt: v.number(),
     updatedAt: v.number(),
