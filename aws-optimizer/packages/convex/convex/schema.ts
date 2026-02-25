@@ -602,6 +602,9 @@ export default defineSchema({
     // Generated content (markdown format)
     content: v.optional(v.string()),
 
+    // Structured report data (JSON) - used by cost analysis reports
+    reportData: v.optional(v.string()),
+
     // AWS accounts covered by this report
     awsAccountIds: v.optional(v.array(v.id("awsAccounts"))),
 
