@@ -31,6 +31,8 @@ import type * as awsOrganizations from "../awsOrganizations.js";
 import type * as billing from "../billing.js";
 import type * as budgets from "../budgets.js";
 import type * as costs from "../costs.js";
+import type * as cronManager from "../cronManager.js";
+import type * as cronUtils from "../cronUtils.js";
 import type * as crons from "../crons.js";
 import type * as dashboard from "../dashboard.js";
 import type * as feedback from "../feedback.js";
@@ -77,6 +79,8 @@ declare const fullApi: ApiFromModules<{
   billing: typeof billing;
   budgets: typeof budgets;
   costs: typeof costs;
+  cronManager: typeof cronManager;
+  cronUtils: typeof cronUtils;
   crons: typeof crons;
   dashboard: typeof dashboard;
   feedback: typeof feedback;

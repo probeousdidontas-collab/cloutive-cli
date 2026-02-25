@@ -766,4 +766,45 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_entityType", ["entityType"])
     .index("by_createdAt", ["createdAt"]),
+
+  // ============================================================================
+  // CRON SCHEDULES
+  // ============================================================================
+  // Table-driven cron schedules managed at runtime via the UI.
+  // Replaces static cronJobs() calls with dynamic, toggleable schedules.
+  cronSchedules: defineTable({
+    name: v.string(),
+    description: v.string(),
+    cronExpression: v.string(),       // "0 2 * * *"
+    handlerKey: v.string(),           // maps to HANDLER_REGISTRY in cronManager.ts
+    enabled: v.boolean(),
+    lastRunAt: v.optional(v.number()),
+    lastRunStatus: v.optional(v.union(v.literal("completed"), v.literal("failed"), v.literal("running"))),
+    nextRunAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_name", ["name"])
+    .index("by_enabled", ["enabled"])
+    .index("by_nextRunAt", ["nextRunAt"]),
+
+  // ============================================================================
+  // CRON EXECUTION LOG
+  // ============================================================================
+  // Execution history for cron jobs, both scheduled and manual triggers.
+  cronExecutionLog: defineTable({
+    cronScheduleId: v.id("cronSchedules"),
+    jobName: v.string(),
+    status: v.union(v.literal("running"), v.literal("completed"), v.literal("failed"), v.literal("skipped")),
+    trigger: v.union(v.literal("scheduled"), v.literal("manual")),
+    startedAt: v.number(),
+    completedAt: v.optional(v.number()),
+    durationMs: v.optional(v.number()),
+    errorMessage: v.optional(v.string()),
+    resultSummary: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_cronSchedule", ["cronScheduleId"])
+    .index("by_startedAt", ["startedAt"])
+    .index("by_status", ["status"]),
 });

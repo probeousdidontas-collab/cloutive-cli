@@ -21,3 +21,4 @@ export { AcceptInvitationPage } from "./AcceptInvitationPage";
 export { PrivacyPolicyPage } from "./PrivacyPolicyPage";
 export { TermsOfServicePage } from "./TermsOfServicePage";
 export { FeedbackAdminPage } from "./FeedbackAdminPage";
+export { CronManagementPage } from "./CronManagementPage";

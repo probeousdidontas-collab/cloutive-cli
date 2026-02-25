@@ -1114,33 +1114,15 @@ export const triggerWeeklySummaryEmails = internalAction({
 // ============================================================================
 // Cron Configuration
 // ============================================================================
+// Single scheduler tick every 5 minutes. All actual job scheduling is
+// table-driven via the cronSchedules table, managed by cronManager.ts.
 
 const crons = cronJobs();
 
-// Daily cost collection at 2:00 AM UTC
-// Runs for all connected AWS accounts with active subscriptions
 crons.cron(
-  "daily cost collection",
-  "0 2 * * *", // 2:00 AM UTC daily
-  internal.crons.triggerDailyCostCollection,
-  {}
-);
-
-// Daily credential expiry check at 6:00 AM UTC
-// Checks for credentials expiring within 7 days and creates alerts
-crons.cron(
-  "daily credential expiry check",
-  "0 6 * * *", // 6:00 AM UTC daily
-  internal.crons.triggerCredentialExpiryCheck,
-  {}
-);
-
-// Weekly summary emails every Monday at 8:00 AM UTC
-// Sends cost summaries to organizations with weekly email preference
-crons.cron(
-  "weekly summary emails",
-  "0 8 * * 1", // 8:00 AM UTC every Monday
-  internal.crons.triggerWeeklySummaryEmails,
+  "scheduler tick",
+  "*/5 * * * *",
+  internal.cronManager.schedulerTick,
   {}
 );
 
