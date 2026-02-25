@@ -29,6 +29,7 @@ import {
   Progress,
   RingProgress,
   ThemeIcon,
+  SimpleGrid,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import {
@@ -286,6 +287,191 @@ function getErrorColor(category: ErrorCategory): string {
     unknown: "red",
   };
   return colors[category] || "red";
+}
+
+/**
+ * Inline preview of a cost analysis report within the detail modal.
+ */
+function CostAnalysisPreview({ data }: { data: CostAnalysisReportData }) {
+  const fmt = (v: number) =>
+    "$" + v.toLocaleString("en-US", { maximumFractionDigits: 0 });
+  const chgColor = (v: number) => (v > 0 ? "red" : v < 0 ? "green" : "gray");
+  const chgPrefix = (v: number) => (v > 0 ? "+" : "");
+
+  return (
+    <ScrollArea h={600} type="auto">
+      <Stack gap="md">
+        {/* Summary Cards */}
+        <SimpleGrid cols={4}>
+          <Card withBorder p="sm" radius="md">
+            <Text size="xs" c="dimmed" fw={600}>CURRENT MONTH</Text>
+            <Text size="xl" fw={700}>{fmt(data.summary.currentMonth.total)}</Text>
+            <Text size="xs" c="dimmed">{data.summary.currentMonth.name}</Text>
+          </Card>
+          <Card withBorder p="sm" radius="md">
+            <Text size="xs" c="dimmed" fw={600}>PREVIOUS MONTH</Text>
+            <Text size="xl" fw={700}>{fmt(data.summary.previousMonth.total)}</Text>
+            <Text size="xs" c="dimmed">{data.summary.previousMonth.name}</Text>
+          </Card>
+          <Card withBorder p="sm" radius="md">
+            <Text size="xs" c="dimmed" fw={600}>MOM CHANGE</Text>
+            <Text size="xl" fw={700} c={chgColor(data.summary.change)}>
+              {chgPrefix(data.summary.change)}{fmt(data.summary.change)}
+            </Text>
+            <Text size="xs" c={chgColor(data.summary.changePercent)}>
+              {chgPrefix(data.summary.changePercent)}{data.summary.changePercent}%
+            </Text>
+          </Card>
+          <Card withBorder p="sm" radius="md">
+            <Text size="xs" c="dimmed" fw={600}>ACCOUNTS</Text>
+            <Text size="xl" fw={700}>{data.accountCount}</Text>
+            <Text size="xs" c="dimmed">Active accounts</Text>
+          </Card>
+        </SimpleGrid>
+
+        {/* Executive Insights */}
+        {data.executiveInsights && (
+          <Card withBorder p="md" radius="md" bg="indigo.0">
+            <Group gap="xs" mb="xs">
+              <IconRobot size={16} />
+              <Text size="sm" fw={600}>AI Executive Insights</Text>
+            </Group>
+            <Text size="sm">{data.executiveInsights}</Text>
+          </Card>
+        )}
+
+        {/* Top Accounts Table */}
+        <Box>
+          <Text fw={600} mb="xs">Top {data.topAccounts.length} Accounts by Cost</Text>
+          <Table striped highlightOnHover withTableBorder withColumnBorders>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Account</Table.Th>
+                <Table.Th style={{ textAlign: "right" }}>{data.summary.previousMonth.name}</Table.Th>
+                <Table.Th style={{ textAlign: "right" }}>{data.summary.currentMonth.name}</Table.Th>
+                <Table.Th style={{ textAlign: "right" }}>Change</Table.Th>
+                <Table.Th style={{ textAlign: "right" }}>Change %</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {data.topAccounts.map((acc) => (
+                <Table.Tr key={acc.accountId}>
+                  <Table.Td>
+                    <Text size="sm" fw={500}>{acc.name}</Text>
+                    <Text size="xs" c="dimmed">{acc.accountId}</Text>
+                  </Table.Td>
+                  <Table.Td style={{ textAlign: "right" }}>{fmt(acc.previousMonth)}</Table.Td>
+                  <Table.Td style={{ textAlign: "right" }}>{fmt(acc.currentMonth)}</Table.Td>
+                  <Table.Td style={{ textAlign: "right" }}>
+                    <Text size="sm" c={chgColor(acc.change)}>
+                      {chgPrefix(acc.change)}{fmt(acc.change)}
+                    </Text>
+                  </Table.Td>
+                  <Table.Td style={{ textAlign: "right" }}>
+                    <Text size="sm" c={chgColor(acc.changePercent)}>
+                      {chgPrefix(acc.changePercent)}{acc.changePercent}%
+                    </Text>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        </Box>
+
+        {/* Per-Account Details */}
+        {data.accountDetails.map((account) => (
+          <Card key={account.accountId} withBorder p="md" radius="md">
+            <Group justify="space-between" mb="sm">
+              <Box>
+                <Text fw={600}>{account.name}</Text>
+                <Text size="xs" c="dimmed">AWS Account: {account.accountId}</Text>
+              </Box>
+              <Group gap="xs">
+                <Badge color={chgColor(account.change)} variant="light" size="lg">
+                  {chgPrefix(account.change)}{fmt(account.change)} ({chgPrefix(account.change)}{account.change !== 0 && account.previousMonth > 0 ? Math.round((account.change / account.previousMonth) * 100) : 0}%)
+                </Badge>
+              </Group>
+            </Group>
+
+            <SimpleGrid cols={3} mb="sm">
+              <Box>
+                <Text size="xs" c="dimmed">Current Month</Text>
+                <Text fw={600}>{fmt(account.currentMonth)}</Text>
+              </Box>
+              <Box>
+                <Text size="xs" c="dimmed">Previous Month</Text>
+                <Text fw={600}>{fmt(account.previousMonth)}</Text>
+              </Box>
+              <Box>
+                <Text size="xs" c="dimmed">Services</Text>
+                <Text fw={600}>{account.serviceCount}</Text>
+              </Box>
+            </SimpleGrid>
+
+            {/* AI Insights */}
+            {account.aiInsights && (
+              <Card withBorder p="sm" radius="md" bg="gray.0" mb="sm">
+                <Text size="xs" fw={600} c="dimmed" mb={4}>AI INSIGHTS</Text>
+                <Text size="sm">{account.aiInsights}</Text>
+              </Card>
+            )}
+
+            {/* Root Cause Analysis */}
+            {account.rootCauseAnalysis.length > 0 && (
+              <Box mb="sm">
+                <Text size="sm" fw={600} mb="xs">Root Cause Analysis</Text>
+                <Stack gap="xs">
+                  {account.rootCauseAnalysis.map((svc, i) => (
+                    <Card key={i} withBorder p="xs" radius="sm" bg="red.0">
+                      <Group justify="space-between">
+                        <Text size="sm" fw={500} c="red.7">{svc.serviceName}</Text>
+                        <Text size="sm" c="red">+{fmt(svc.change)}</Text>
+                      </Group>
+                      {svc.usageTypes.map((ut, j) => (
+                        <Group key={j} ml="md" gap="xs">
+                          <Text size="xs" c="dimmed">{ut.name}:</Text>
+                          <Text size="xs" c="red">{fmt(ut.previousCost)} → {fmt(ut.currentCost)} (+{fmt(ut.change)})</Text>
+                        </Group>
+                      ))}
+                    </Card>
+                  ))}
+                </Stack>
+              </Box>
+            )}
+
+            {/* Top Services */}
+            {account.topServices.length > 0 && (
+              <Box>
+                <Text size="sm" fw={600} mb="xs">Top Services</Text>
+                <Table striped withTableBorder>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>Service</Table.Th>
+                      {Object.keys(account.topServices[0].costs).map((month) => (
+                        <Table.Th key={month} style={{ textAlign: "right" }}>{month}</Table.Th>
+                      ))}
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {account.topServices.map((svc) => (
+                      <Table.Tr key={svc.name}>
+                        <Table.Td><Text size="xs">{svc.name}</Text></Table.Td>
+                        {Object.values(svc.costs).map((cost, i) => (
+                          <Table.Td key={i} style={{ textAlign: "right" }}>
+                            <Text size="xs">{fmt(cost)}</Text>
+                          </Table.Td>
+                        ))}
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
+              </Box>
+            )}
+          </Card>
+        ))}
+      </Stack>
+    </ScrollArea>
+  );
 }
 
 export const ReportsPage = observer(function ReportsPage() {
@@ -1138,7 +1324,7 @@ export const ReportsPage = observer(function ReportsPage() {
         opened={detailModalOpened}
         onClose={handleCloseDetailModal}
         title={reportDetail?.name || "Report Details"}
-        size="xl"
+        size={reportDetail?.reportData ? "90%" : "xl"}
         data-testid="report-detail-modal"
       >
         {!reportDetail ? (
@@ -1371,12 +1557,7 @@ export const ReportsPage = observer(function ReportsPage() {
             </Group>
             <Divider />
             {reportDetail.reportData ? (
-              <Stack gap="sm">
-                <Text fw={600}>Cost Analysis Report</Text>
-                <Text size="sm" c="dimmed">
-                  This is a structured cost analysis report. Click "Export PDF" to download the full report with charts and tables.
-                </Text>
-              </Stack>
+              <CostAnalysisPreview data={JSON.parse(reportDetail.reportData)} />
             ) : (
               <ScrollArea h={500} type="auto">
                 <TypographyStylesProvider>
