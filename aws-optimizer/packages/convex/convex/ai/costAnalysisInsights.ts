@@ -37,7 +37,7 @@ export const generateInsights = internalAction({
     const executiveResult = await generateText({
       model: openrouter(MODEL_ID),
       prompt: `You are an AWS cost optimization expert. Based on the following AWS cost data, write a concise executive insights paragraph (3-5 sentences). Focus on: key cost drivers, notable trends, and urgent areas needing attention. Be specific with numbers. Do NOT use markdown formatting - plain text only.\n\n${summaryText}`,
-      maxTokens: 500,
+      maxOutputTokens: 500,
     });
 
     reportData.executiveInsights = executiveResult.text;
@@ -57,7 +57,7 @@ export const generateInsights = internalAction({
         const accountResult = await generateText({
           model: openrouter(MODEL_ID),
           prompt: `You are an AWS cost optimization expert. Based on the following account cost data, write 1-2 sentences of insight about what's driving costs and any recommended actions. Be specific. Plain text only, no markdown.\n\n${accountSummary}`,
-          maxTokens: 200,
+          maxOutputTokens: 200,
         });
 
         account.aiInsights = accountResult.text;
