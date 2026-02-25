@@ -612,7 +612,6 @@ export const generateReport = internalAction({
       await ctx.runMutation(internal.ai.reportGeneration.updateReportFailed, {
         reportId,
         errorMessage: formatErrorMessage(classified),
-        errorCategory: classified.category,
       });
     }
   },
