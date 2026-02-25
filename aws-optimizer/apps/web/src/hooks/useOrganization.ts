@@ -244,6 +244,9 @@ export function useOrganization(): UseOrganizationResult {
       } catch (error) {
         console.error("Failed to create organization:", error);
         showErrorToast("Failed to create organization");
+        runInAction(() => {
+          organizationStore.setIsResolvingConvexId(false);
+        });
         return false;
       }
     },

@@ -27,9 +27,13 @@ import {
   IconChartPie,
   IconChartLine,
   IconUser,
+  IconCurrencyDollar,
+  IconRocket,
+  IconServer,
 } from "@tabler/icons-react";
 import { useQuery } from "convex/react";
 import { observer } from "mobx-react-lite";
+import { useNavigate } from "@tanstack/react-router";
 import { api } from "@aws-optimizer/convex/convex/_generated/api";
 import { useSession, IS_TEST_MODE } from "../lib/auth-client";
 import { useOrganization } from "../hooks/useOrganization";
@@ -119,8 +123,40 @@ function getRecommendationTypeLabel(type: string): string {
   return labels[type] || type;
 }
 
+// Dashboard section categories for grouping recommendations
+const RECOMMENDATION_CATEGORIES: {
+  key: string;
+  label: string;
+  icon: typeof IconCurrencyDollar;
+  color: string;
+  types: string[];
+}[] = [
+  {
+    key: "cost",
+    label: "Cost Optimization",
+    icon: IconCurrencyDollar,
+    color: "green",
+    types: ["reserved_instance", "savings_plan"],
+  },
+  {
+    key: "performance",
+    label: "Performance",
+    icon: IconRocket,
+    color: "blue",
+    types: ["rightsizing", "idle_resource"],
+  },
+  {
+    key: "resources",
+    label: "Resource Management",
+    icon: IconServer,
+    color: "orange",
+    types: ["unused_resource", "storage_optimization", "network_optimization"],
+  },
+];
+
 export const DashboardPage = observer(function DashboardPage() {
   const { data: session, isPending: isSessionPending } = useSession();
+  const navigate = useNavigate();
 
   // Wait for authentication before executing queries
   const isAuthenticated = !isSessionPending && session !== null;
@@ -246,23 +282,33 @@ export const DashboardPage = observer(function DashboardPage() {
     ? ((currentMonthTotal - previousMonthTotal) / previousMonthTotal) * 100
     : 0;
 
-  // Get top 5 recommendations
-  const topRecommendations = useMemo(() => {
+  // Get all open recommendations
+  const openRecommendations = useMemo(() => {
     if (!recommendations) return [];
     return recommendations
       .filter((r) => r.status === "open")
-      .sort((a, b) => b.estimatedSavings - a.estimatedSavings)
-      .slice(0, 5);
+      .sort((a, b) => b.estimatedSavings - a.estimatedSavings);
   }, [recommendations]);
+
+  // Group recommendations by category
+  const groupedRecommendations = useMemo(() => {
+    return RECOMMENDATION_CATEGORIES.map((category) => ({
+      ...category,
+      recommendations: openRecommendations.filter((r) =>
+        category.types.includes(r.type)
+      ),
+      totalSavings: openRecommendations
+        .filter((r) => category.types.includes(r.type))
+        .reduce((sum, r) => sum + r.estimatedSavings, 0),
+    })).filter((group) => group.recommendations.length > 0);
+  }, [openRecommendations]);
 
   // Calculate total potential savings
   const totalPotentialSavings = useMemo(() => {
-    if (!recommendations) return 0;
-    return recommendations
-      .filter((r) => r.status === "open")
-      .reduce((sum, r) => sum + r.estimatedSavings, 0);
-  }, [recommendations]);
+    return openRecommendations.reduce((sum, r) => sum + r.estimatedSavings, 0);
+  }, [openRecommendations]);
 
+  const hasRecommendations = openRecommendations.length > 0;
   const isLoading = costSnapshots === undefined || recommendations === undefined || !isOrgReady;
 
   // Show loading state while waiting for authentication or organization
@@ -314,6 +360,35 @@ export const DashboardPage = observer(function DashboardPage() {
     );
   }
 
+  // Show onboarding state when no AWS accounts are connected
+  if (!isLoading && summary && summary.totalAccounts === 0) {
+    return (
+      <Center h="calc(100vh - 120px)" data-testid="dashboard-page-no-accounts">
+        <Paper p="xl" ta="center" withBorder maw={500}>
+          <Stack align="center" gap="lg">
+            <ThemeIcon variant="light" color="blue" size={80} radius="xl">
+              <IconCloud size={40} />
+            </ThemeIcon>
+            <Stack gap="xs" align="center">
+              <Title order={3}>Get Started with AWS Optimizer</Title>
+              <Text c="dimmed" size="sm" maw={400}>
+                Connect your first AWS account to start tracking costs and
+                discovering optimization opportunities.
+              </Text>
+            </Stack>
+            <Button
+              size="md"
+              leftSection={<IconCloud size={18} />}
+              onClick={() => navigate({ to: "/accounts" })}
+            >
+              Connect AWS Account
+            </Button>
+          </Stack>
+        </Paper>
+      </Center>
+    );
+  }
+
   return (
     <Container data-testid="dashboard-page" size="xl" py="xl">
       <Stack gap="lg">
@@ -336,277 +411,308 @@ export const DashboardPage = observer(function DashboardPage() {
           </Badge>
         </Group>
 
-        {/* Cost Overview Cards */}
-        <Paper data-testid="cost-overview" withBorder p="md">
-          <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }}>
-            {/* Current Month Cost */}
-            <Stack gap="xs">
-              <Group gap="xs">
-                <ThemeIcon variant="light" color="blue" size="sm">
-                  <IconCoin size={14} />
-                </ThemeIcon>
-                <Text size="sm" c="dimmed">
-                  Current Month
-                </Text>
-              </Group>
-              {isLoading ? (
-                <Skeleton height={36} />
-              ) : (
-                <Text data-testid="current-month-cost" size="xl" fw={700}>
-                  {formatCurrency(currentMonthTotal || summary?.currentMonthCost || 0)}
-                </Text>
-              )}
-            </Stack>
+        {/* ── Cost Overview ── */}
+        <Stack gap="sm">
+          <Group gap="xs">
+            <ThemeIcon variant="light" color="green" size="md">
+              <IconCurrencyDollar size={18} />
+            </ThemeIcon>
+            <Title order={3}>Cost Overview</Title>
+          </Group>
 
-            {/* Month Comparison */}
-            <Stack gap="xs">
-              <Group gap="xs">
-                <ThemeIcon
-                  variant="light"
-                  color={costChangePercent > 0 ? "red" : costChangePercent < 0 ? "green" : "gray"}
-                  size="sm"
-                >
-                  {costChangePercent > 0 ? (
-                    <IconTrendingUp size={14} />
-                  ) : costChangePercent < 0 ? (
-                    <IconTrendingDown size={14} />
-                  ) : (
-                    <IconMinus size={14} />
-                  )}
-                </ThemeIcon>
-                <Text size="sm" c="dimmed">
-                  vs Previous Month
-                </Text>
-              </Group>
-              {isLoading ? (
-                <Skeleton height={36} />
-              ) : (
-                <Group gap="xs" data-testid="month-comparison">
-                  <Text
-                    data-testid="cost-trend-indicator"
-                    size="xl"
-                    fw={700}
-                    c={costChangePercent > 0 ? "red" : costChangePercent < 0 ? "green" : "dimmed"}
-                  >
-                    {formatPercentage(costChangePercent || summary?.costChange || 0)}
-                  </Text>
-                  <Text size="sm" c="dimmed">
-                    ({formatCurrency(previousMonthTotal || summary?.previousMonthCost || 0)})
-                  </Text>
-                </Group>
-              )}
-            </Stack>
-
-            {/* Open Recommendations */}
-            <Stack gap="xs">
-              <Group gap="xs">
-                <ThemeIcon variant="light" color="orange" size="sm">
-                  <IconBulb size={14} />
-                </ThemeIcon>
-                <Text size="sm" c="dimmed">
-                  Open Recommendations
-                </Text>
-              </Group>
-              {isLoading ? (
-                <Skeleton height={36} />
-              ) : (
-                <Text size="xl" fw={700}>
-                  {topRecommendations.length || summary?.totalOpenRecommendations || 0}
-                </Text>
-              )}
-            </Stack>
-
-            {/* Potential Savings */}
-            <Stack gap="xs">
-              <Group gap="xs">
-                <ThemeIcon variant="light" color="green" size="sm">
-                  <IconTrendingDown size={14} />
-                </ThemeIcon>
-                <Text size="sm" c="dimmed">
-                  Potential Savings
-                </Text>
-              </Group>
-              {isLoading ? (
-                <Skeleton height={36} />
-              ) : (
-                <Text data-testid="total-savings" size="xl" fw={700} c="green">
-                  {formatCurrency(totalPotentialSavings || summary?.totalEstimatedSavings || 0)}/mo
-                </Text>
-              )}
-            </Stack>
-          </SimpleGrid>
-        </Paper>
-
-        {/* Charts Row */}
-        <Grid>
-          {/* Service Breakdown Pie Chart */}
-          <Grid.Col span={{ base: 12, md: 6 }}>
-            <Paper data-testid="service-breakdown" withBorder p="md" h="100%">
-              <Stack gap="md">
+          <Paper data-testid="cost-overview" withBorder p="md">
+            <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }}>
+              {/* Current Month Cost */}
+              <Stack gap="xs">
                 <Group gap="xs">
-                  <ThemeIcon variant="light" color="indigo" size="sm">
-                    <IconChartPie size={14} />
+                  <ThemeIcon variant="light" color="blue" size="sm">
+                    <IconCoin size={14} />
                   </ThemeIcon>
-                  <Title order={4}>Cost by Service</Title>
+                  <Text size="sm" c="dimmed">
+                    Current Month
+                  </Text>
                 </Group>
-                
-                <div data-testid="service-chart" style={{ height: 280 }}>
-                  {isLoading ? (
-                    <Stack align="center" justify="center" h="100%">
-                      <Skeleton circle height={200} />
-                    </Stack>
-                  ) : serviceChartData.length > 0 ? (
-                    <DonutChart
-                      data={serviceChartData}
-                      withLabelsLine
-                      labelsType="percent"
-                      withTooltip
-                      tooltipDataSource="segment"
-                      chartLabel={formatCurrency(currentMonthTotal)}
-                      size={220}
-                      thickness={35}
-                      mx="auto"
-                    />
-                  ) : (
-                    <Stack align="center" justify="center" h="100%">
-                      <Text c="dimmed">No cost data available</Text>
-                    </Stack>
-                  )}
-                </div>
-
-                {/* Service Legend */}
-                {serviceChartData.length > 0 && (
-                  <SimpleGrid cols={2} spacing="xs">
-                    {serviceChartData.slice(0, 6).map((item) => (
-                      <Group key={item.name} gap="xs" wrap="nowrap">
-                        <div
-                          style={{
-                            width: 12,
-                            height: 12,
-                            borderRadius: 2,
-                            backgroundColor: `var(--mantine-color-${item.color.replace(".", "-")})`,
-                            flexShrink: 0,
-                          }}
-                        />
-                        <Text size="xs" truncate>
-                          {item.name}: {formatCurrency(item.value)}
-                        </Text>
-                      </Group>
-                    ))}
-                  </SimpleGrid>
+                {isLoading ? (
+                  <Skeleton height={36} />
+                ) : (
+                  <Text data-testid="current-month-cost" size="xl" fw={700}>
+                    {formatCurrency(currentMonthTotal || summary?.currentMonthCost || 0)}
+                  </Text>
                 )}
               </Stack>
-            </Paper>
-          </Grid.Col>
 
-          {/* Cost Trend Line Chart */}
-          <Grid.Col span={{ base: 12, md: 6 }}>
-            <Paper data-testid="cost-trend" withBorder p="md" h="100%">
-              <Stack gap="md">
+              {/* Month Comparison */}
+              <Stack gap="xs">
                 <Group gap="xs">
-                  <ThemeIcon variant="light" color="cyan" size="sm">
-                    <IconChartLine size={14} />
-                  </ThemeIcon>
-                  <Title order={4}>Cost Trend</Title>
-                </Group>
-                
-                <div data-testid="trend-chart" style={{ height: 280 }}>
-                  {isLoading ? (
-                    <Skeleton height={280} />
-                  ) : trendChartData.length > 0 ? (
-                    <AreaChart
-                      h={280}
-                      data={trendChartData}
-                      dataKey="date"
-                      series={[{ name: "cost", color: "cyan.6" }]}
-                      curveType="monotone"
-                      withDots={false}
-                      withGradient
-                      gridAxis="xy"
-                      yAxisProps={{
-                        tickFormatter: (value: number) => `$${value.toLocaleString()}`,
-                      }}
-                      tooltipProps={{
-                        content: ({ payload }) => {
-                          if (!payload || payload.length === 0) return null;
-                          const data = payload[0]?.payload as { date: string; cost: number } | undefined;
-                          if (!data) return null;
-                          return (
-                            <Paper px="md" py="sm" withBorder shadow="md" radius="md">
-                              <Text size="sm" fw={500}>{data.date}</Text>
-                              <Text size="sm" c="cyan">{formatCurrency(data.cost)}</Text>
-                            </Paper>
-                          );
-                        },
-                      }}
-                    />
-                  ) : (
-                    <Stack align="center" justify="center" h="100%">
-                      <Text c="dimmed">No trend data available</Text>
-                    </Stack>
-                  )}
-                </div>
-              </Stack>
-            </Paper>
-          </Grid.Col>
-        </Grid>
-
-        {/* Top Recommendations */}
-        <Paper data-testid="top-recommendations" withBorder p="md">
-          <Stack gap="md">
-            <Group justify="space-between" align="center">
-              <Group gap="xs">
-                <ThemeIcon variant="light" color="orange" size="sm">
-                  <IconBulb size={14} />
-                </ThemeIcon>
-                <Title order={4}>Top Recommendations</Title>
-              </Group>
-              {topRecommendations.length > 0 && (
-                <Badge variant="light" color="green">
-                  Save up to {formatCurrency(totalPotentialSavings)}/mo
-                </Badge>
-              )}
-            </Group>
-
-            {isLoading ? (
-              <Stack gap="sm">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <Skeleton key={i} height={60} />
-                ))}
-              </Stack>
-            ) : topRecommendations.length > 0 ? (
-              <List spacing="sm" size="sm" center>
-                {topRecommendations.map((rec, index) => (
-                  <List.Item
-                    key={rec._id}
-                    data-testid={`recommendation-item-${index}`}
-                    icon={
-                      <Badge
-                        size="lg"
-                        variant="filled"
-                        color={getRecommendationTypeColor(rec.type)}
-                        radius="sm"
-                        style={{ minWidth: 100, textAlign: "center" }}
-                      >
-                        {getRecommendationTypeLabel(rec.type)}
-                      </Badge>
-                    }
+                  <ThemeIcon
+                    variant="light"
+                    color={costChangePercent > 0 ? "red" : costChangePercent < 0 ? "green" : "gray"}
+                    size="sm"
                   >
-                    <Group justify="space-between" wrap="nowrap" gap="md">
-                      <Stack gap={2}>
-                        <Text fw={500}>{rec.title}</Text>
-                        <Text size="xs" c="dimmed" lineClamp={1}>
-                          {rec.description}
-                        </Text>
+                    {costChangePercent > 0 ? (
+                      <IconTrendingUp size={14} />
+                    ) : costChangePercent < 0 ? (
+                      <IconTrendingDown size={14} />
+                    ) : (
+                      <IconMinus size={14} />
+                    )}
+                  </ThemeIcon>
+                  <Text size="sm" c="dimmed">
+                    vs Previous Month
+                  </Text>
+                </Group>
+                {isLoading ? (
+                  <Skeleton height={36} />
+                ) : (
+                  <Group gap="xs" data-testid="month-comparison">
+                    <Text
+                      data-testid="cost-trend-indicator"
+                      size="xl"
+                      fw={700}
+                      c={costChangePercent > 0 ? "red" : costChangePercent < 0 ? "green" : "dimmed"}
+                    >
+                      {formatPercentage(costChangePercent || summary?.costChange || 0)}
+                    </Text>
+                    <Text size="sm" c="dimmed">
+                      ({formatCurrency(previousMonthTotal || summary?.previousMonthCost || 0)})
+                    </Text>
+                  </Group>
+                )}
+              </Stack>
+
+              {/* Open Recommendations */}
+              <Stack gap="xs">
+                <Group gap="xs">
+                  <ThemeIcon variant="light" color="orange" size="sm">
+                    <IconBulb size={14} />
+                  </ThemeIcon>
+                  <Text size="sm" c="dimmed">
+                    Open Recommendations
+                  </Text>
+                </Group>
+                {isLoading ? (
+                  <Skeleton height={36} />
+                ) : (
+                  <Text size="xl" fw={700}>
+                    {openRecommendations.length || summary?.totalOpenRecommendations || 0}
+                  </Text>
+                )}
+              </Stack>
+
+              {/* Potential Savings */}
+              <Stack gap="xs">
+                <Group gap="xs">
+                  <ThemeIcon variant="light" color="green" size="sm">
+                    <IconTrendingDown size={14} />
+                  </ThemeIcon>
+                  <Text size="sm" c="dimmed">
+                    Potential Savings
+                  </Text>
+                </Group>
+                {isLoading ? (
+                  <Skeleton height={36} />
+                ) : (
+                  <Text data-testid="total-savings" size="xl" fw={700} c="green">
+                    {formatCurrency(totalPotentialSavings || summary?.totalEstimatedSavings || 0)}/mo
+                  </Text>
+                )}
+              </Stack>
+            </SimpleGrid>
+          </Paper>
+
+          <Grid>
+            {/* Service Breakdown Pie Chart */}
+            <Grid.Col span={{ base: 12, md: 6 }}>
+              <Paper data-testid="service-breakdown" withBorder p="md" h="100%">
+                <Stack gap="md">
+                  <Group gap="xs">
+                    <ThemeIcon variant="light" color="indigo" size="sm">
+                      <IconChartPie size={14} />
+                    </ThemeIcon>
+                    <Title order={4}>Cost by Service</Title>
+                  </Group>
+
+                  <div data-testid="service-chart" style={{ height: 280 }}>
+                    {isLoading ? (
+                      <Stack align="center" justify="center" h="100%">
+                        <Skeleton circle height={200} />
                       </Stack>
-                      <Badge size="lg" variant="light" color="green" style={{ flexShrink: 0 }}>
-                        ${rec.estimatedSavings}/mo
+                    ) : serviceChartData.length > 0 ? (
+                      <DonutChart
+                        data={serviceChartData}
+                        withLabelsLine
+                        labelsType="percent"
+                        withTooltip
+                        tooltipDataSource="segment"
+                        chartLabel={formatCurrency(currentMonthTotal)}
+                        size={220}
+                        thickness={35}
+                        mx="auto"
+                      />
+                    ) : (
+                      <Stack align="center" justify="center" h="100%">
+                        <Text c="dimmed">No cost data available</Text>
+                      </Stack>
+                    )}
+                  </div>
+
+                  {/* Service Legend */}
+                  {serviceChartData.length > 0 && (
+                    <SimpleGrid cols={2} spacing="xs">
+                      {serviceChartData.slice(0, 6).map((item) => (
+                        <Group key={item.name} gap="xs" wrap="nowrap">
+                          <div
+                            style={{
+                              width: 12,
+                              height: 12,
+                              borderRadius: 2,
+                              backgroundColor: `var(--mantine-color-${item.color.replace(".", "-")})`,
+                              flexShrink: 0,
+                            }}
+                          />
+                          <Text size="xs" truncate>
+                            {item.name}: {formatCurrency(item.value)}
+                          </Text>
+                        </Group>
+                      ))}
+                    </SimpleGrid>
+                  )}
+                </Stack>
+              </Paper>
+            </Grid.Col>
+
+            {/* Cost Trend Line Chart */}
+            <Grid.Col span={{ base: 12, md: 6 }}>
+              <Paper data-testid="cost-trend" withBorder p="md" h="100%">
+                <Stack gap="md">
+                  <Group gap="xs">
+                    <ThemeIcon variant="light" color="cyan" size="sm">
+                      <IconChartLine size={14} />
+                    </ThemeIcon>
+                    <Title order={4}>Cost Trend</Title>
+                  </Group>
+
+                  <div data-testid="trend-chart" style={{ height: 280 }}>
+                    {isLoading ? (
+                      <Skeleton height={280} />
+                    ) : trendChartData.length > 0 ? (
+                      <AreaChart
+                        h={280}
+                        data={trendChartData}
+                        dataKey="date"
+                        series={[{ name: "cost", color: "cyan.6" }]}
+                        curveType="monotone"
+                        withDots={false}
+                        withGradient
+                        gridAxis="xy"
+                        yAxisProps={{
+                          tickFormatter: (value: number) => `$${value.toLocaleString()}`,
+                        }}
+                        tooltipProps={{
+                          content: ({ payload }) => {
+                            if (!payload || payload.length === 0) return null;
+                            const data = payload[0]?.payload as { date: string; cost: number } | undefined;
+                            if (!data) return null;
+                            return (
+                              <Paper px="md" py="sm" withBorder shadow="md" radius="md">
+                                <Text size="sm" fw={500}>{data.date}</Text>
+                                <Text size="sm" c="cyan">{formatCurrency(data.cost)}</Text>
+                              </Paper>
+                            );
+                          },
+                        }}
+                      />
+                    ) : (
+                      <Stack align="center" justify="center" h="100%">
+                        <Text c="dimmed">No trend data available</Text>
+                      </Stack>
+                    )}
+                  </div>
+                </Stack>
+              </Paper>
+            </Grid.Col>
+          </Grid>
+        </Stack>
+
+        {/* ── Recommendations by Category ── */}
+        <Stack gap="sm">
+          <Group justify="space-between" align="center">
+            <Group gap="xs">
+              <ThemeIcon variant="light" color="orange" size="md">
+                <IconBulb size={18} />
+              </ThemeIcon>
+              <Title order={3}>Recommendations</Title>
+            </Group>
+            {hasRecommendations && (
+              <Badge variant="light" color="green" size="lg">
+                Save up to {formatCurrency(totalPotentialSavings)}/mo
+              </Badge>
+            )}
+          </Group>
+
+          {isLoading ? (
+            <Stack gap="sm">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} height={120} />
+              ))}
+            </Stack>
+          ) : hasRecommendations ? (
+            <Stack gap="md" data-testid="top-recommendations">
+              {groupedRecommendations.map((group) => (
+                <Paper key={group.key} data-testid={`recommendation-group-${group.key}`} withBorder p="md">
+                  <Stack gap="sm">
+                    <Group justify="space-between" align="center">
+                      <Group gap="xs">
+                        <ThemeIcon variant="light" color={group.color} size="sm">
+                          <group.icon size={14} />
+                        </ThemeIcon>
+                        <Title order={4}>{group.label}</Title>
+                        <Badge variant="light" color="gray" size="sm">
+                          {group.recommendations.length}
+                        </Badge>
+                      </Group>
+                      <Badge variant="light" color="green">
+                        {formatCurrency(group.totalSavings)}/mo
                       </Badge>
                     </Group>
-                  </List.Item>
-                ))}
-              </List>
-            ) : (
+
+                    <List spacing="sm" size="sm" center>
+                      {group.recommendations.map((rec, index) => (
+                        <List.Item
+                          key={rec._id}
+                          data-testid={`recommendation-item-${group.key}-${index}`}
+                          icon={
+                            <Badge
+                              size="lg"
+                              variant="filled"
+                              color={getRecommendationTypeColor(rec.type)}
+                              radius="sm"
+                              style={{ minWidth: 100, textAlign: "center" }}
+                            >
+                              {getRecommendationTypeLabel(rec.type)}
+                            </Badge>
+                          }
+                        >
+                          <Group justify="space-between" wrap="nowrap" gap="md">
+                            <Stack gap={2}>
+                              <Text fw={500}>{rec.title}</Text>
+                              <Text size="xs" c="dimmed" lineClamp={1}>
+                                {rec.description}
+                              </Text>
+                            </Stack>
+                            <Badge size="lg" variant="light" color="green" style={{ flexShrink: 0 }}>
+                              ${rec.estimatedSavings}/mo
+                            </Badge>
+                          </Group>
+                        </List.Item>
+                      ))}
+                    </List>
+                  </Stack>
+                </Paper>
+              ))}
+            </Stack>
+          ) : (
+            <Paper data-testid="top-recommendations" withBorder p="md">
               <Stack align="center" py="xl">
                 <IconBulb size={48} style={{ opacity: 0.3 }} />
                 <Text c="dimmed" ta="center">
@@ -615,9 +721,9 @@ export const DashboardPage = observer(function DashboardPage() {
                   Connect an AWS account and run an analysis to get started.
                 </Text>
               </Stack>
-            )}
-          </Stack>
-        </Paper>
+            </Paper>
+          )}
+        </Stack>
       </Stack>
     </Container>
   );
