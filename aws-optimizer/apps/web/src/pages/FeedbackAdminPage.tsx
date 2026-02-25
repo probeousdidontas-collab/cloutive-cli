@@ -19,6 +19,7 @@ import {
   Divider,
   Box,
   ThemeIcon,
+  Switch,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { EmptyState } from "../components/ui";
@@ -165,6 +166,7 @@ interface BugReport {
   consoleErrors?: string;
   screenshotStorageId?: string;
   createdAt: number;
+  isArchived?: boolean;
   aiSummary?: string;
   aiRootCauseAnalysis?: string;
   aiSuggestedFix?: string;
@@ -183,6 +185,7 @@ interface FeedbackItem {
   url: string;
   screenshotStorageId?: string;
   createdAt: number;
+  isArchived?: boolean;
   aiSummary?: string;
   aiImpactAnalysis?: string;
   aiActionItems?: string[];
@@ -228,6 +231,9 @@ function BugReportCard({ bug, onView }: { bug: BugReport; onView: () => void }) 
           </Text>
         </Group>
         <Group gap="xs">
+          {bug.isArchived && (
+            <Badge size="sm" color="gray" variant="outline">Archived</Badge>
+          )}
           <Badge size="sm" color={getSeverityColor(bug.severity)}>
             {bug.severity}
           </Badge>
@@ -315,6 +321,9 @@ function FeedbackCard({ feedback, onView }: { feedback: FeedbackItem; onView: ()
           </Text>
         </Group>
         <Group gap="xs">
+          {feedback.isArchived && (
+            <Badge size="sm" color="gray" variant="outline">Archived</Badge>
+          )}
           <Badge size="sm" color={getFeedbackTypeColor(feedback.type)}>
             {getFeedbackTypeLabel(feedback.type)}
           </Badge>
@@ -570,13 +579,14 @@ function FeedbackDetailModal({
 
 export function FeedbackAdminPage() {
   const [activeTab, setActiveTab] = useState<string | null>("bugs");
+  const [showArchived, setShowArchived] = useState(false);
   const [selectedBug, setSelectedBug] = useState<BugReport | null>(null);
   const [selectedFeedback, setSelectedFeedback] = useState<FeedbackItem | null>(null);
   const [bugModalOpened, bugModalHandlers] = useDisclosure(false);
   const [feedbackModalOpened, feedbackModalHandlers] = useDisclosure(false);
 
-  const bugReports = useQuery(api.feedback.listBugReports, {}) as BugReport[] | undefined;
-  const feedbackItems = useQuery(api.feedback.listFeedback, {}) as FeedbackItem[] | undefined;
+  const bugReports = useQuery(api.feedback.listBugReports, { includeArchived: showArchived }) as BugReport[] | undefined;
+  const feedbackItems = useQuery(api.feedback.listFeedback, { includeArchived: showArchived }) as FeedbackItem[] | undefined;
 
   const isLoading = bugReports === undefined || feedbackItems === undefined;
 
@@ -610,6 +620,11 @@ export function FeedbackAdminPage() {
               Manage bug reports and user feedback
             </Text>
           </div>
+          <Switch
+            label="Show archived"
+            checked={showArchived}
+            onChange={(e) => setShowArchived(e.currentTarget.checked)}
+          />
         </Group>
 
         {/* Stats */}
