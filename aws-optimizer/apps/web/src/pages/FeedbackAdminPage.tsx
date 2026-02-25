@@ -36,6 +36,7 @@ import {
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@aws-optimizer/convex/convex/_generated/api";
 import { showSuccessToast, showErrorToast } from "../lib/notifications";
+import { CopyAiPromptButton } from "../components/CopyAiPromptButton";
 
 type BugSeverity = "low" | "medium" | "high" | "critical";
 type BugStatus = "open" | "in-progress" | "resolved" | "closed";
@@ -270,6 +271,7 @@ function BugReportCard({ bug, onView }: { bug: BugReport; onView: () => void }) 
               <IconEye size={16} />
             </ActionIcon>
           </Tooltip>
+          <CopyAiPromptButton type="bug" report={bug} />
           <Tooltip label="Archive">
             <ActionIcon variant="subtle" color="red" onClick={handleArchive}>
               <IconArchive size={16} />
@@ -401,6 +403,7 @@ function BugDetailModal({
           <Badge color={getSeverityColor(bug.severity)}>{bug.severity}</Badge>
           <Badge color={getBugStatusColor(bug.status)}>{bug.status}</Badge>
           {bug.ticketNumber && <Badge variant="outline">{bug.ticketNumber}</Badge>}
+          <CopyAiPromptButton type="bug" report={bug} />
         </Group>
 
         <Box>
