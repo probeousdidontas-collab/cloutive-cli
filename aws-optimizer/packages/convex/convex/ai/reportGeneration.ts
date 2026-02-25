@@ -231,6 +231,28 @@ export const updateReportCompleted = internalMutation({
 });
 
 /**
+ * Update report with structured JSON report data.
+ */
+export const updateReportCompletedWithData = internalMutation({
+  args: {
+    reportId: v.id("reports"),
+    reportData: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    await ctx.db.patch(args.reportId, {
+      status: "completed",
+      reportData: args.reportData,
+      progressStep: 8,
+      progressMessage: "Report completed!",
+      progressPercent: 100,
+      generatedAt: now,
+      updatedAt: now,
+    });
+  },
+});
+
+/**
  * Update report status to failed with error message.
  */
 export const updateReportFailed = internalMutation({
