@@ -31,6 +31,8 @@ import {
   Box,
   SegmentedControl,
   Divider,
+  Collapse,
+  ScrollArea,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import {
@@ -43,6 +45,12 @@ import {
   IconAlertTriangle,
   IconCalendar,
   IconCode,
+  IconChevronDown,
+  IconChevronRight,
+  IconCircleCheck,
+  IconCircleX,
+  IconLoader,
+  IconArrowForward,
 } from "@tabler/icons-react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@aws-optimizer/convex/convex/_generated/api";
@@ -630,6 +638,145 @@ function CreateScheduleModal({
 }
 
 // ============================================================================
+// Result Detail Rendering
+// ============================================================================
+
+/** Try to parse a result summary as JSON and render it nicely */
+function ResultDetail({ resultSummary, errorMessage }: { resultSummary?: string; errorMessage?: string }) {
+  if (errorMessage) {
+    return (
+      <Paper p="sm" radius="sm" bg="red.0" withBorder style={{ borderColor: "var(--mantine-color-red-3)" }}>
+        <Group gap="xs" mb={4}>
+          <IconCircleX size={14} color="var(--mantine-color-red-6)" />
+          <Text size="xs" fw={600} c="red.7">Error</Text>
+        </Group>
+        <Code block style={{ whiteSpace: "pre-wrap", fontSize: 12 }}>{errorMessage}</Code>
+      </Paper>
+    );
+  }
+
+  if (!resultSummary) {
+    return <Text size="xs" c="dimmed">No result data available.</Text>;
+  }
+
+  // Try to parse as JSON for rich rendering
+  let parsed: Record<string, unknown> | null = null;
+  try {
+    parsed = JSON.parse(resultSummary);
+  } catch {
+    // Not JSON, render as plain text
+    return (
+      <Paper p="sm" radius="sm" bg="gray.0" withBorder>
+        <Text size="sm">{resultSummary}</Text>
+      </Paper>
+    );
+  }
+
+  if (!parsed || typeof parsed !== "object") {
+    return (
+      <Paper p="sm" radius="sm" bg="gray.0" withBorder>
+        <Text size="sm">{resultSummary}</Text>
+      </Paper>
+    );
+  }
+
+  return (
+    <Stack gap="xs">
+      {/* Top-level summary stats */}
+      <Group gap="md">
+        {Object.entries(parsed).map(([key, value]) => {
+          if (typeof value === "number" || typeof value === "string" || typeof value === "boolean") {
+            return (
+              <Paper key={key} p="xs" radius="sm" bg="gray.0" withBorder>
+                <Text size="xs" c="dimmed" tt="uppercase" fw={600}>{formatFieldLabel(key)}</Text>
+                <Text size="sm" fw={600}>{String(value)}</Text>
+              </Paper>
+            );
+          }
+          return null;
+        })}
+      </Group>
+
+      {/* Array results (e.g., per-account details) */}
+      {Object.entries(parsed).map(([key, value]) => {
+        if (!Array.isArray(value) || value.length === 0) return null;
+        return (
+          <Box key={key}>
+            <Text size="xs" fw={600} c="dimmed" tt="uppercase" mb={4}>{formatFieldLabel(key)}</Text>
+            <ScrollArea.Autosize mah={300}>
+              <Stack gap={4}>
+                {value.map((item: Record<string, unknown>, i: number) => (
+                  <ResultRow key={i} item={item} />
+                ))}
+              </Stack>
+            </ScrollArea.Autosize>
+          </Box>
+        );
+      })}
+    </Stack>
+  );
+}
+
+function formatFieldLabel(key: string): string {
+  return key.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase()).trim();
+}
+
+/** Render a single result row (e.g., one account's collection result) */
+function ResultRow({ item }: { item: Record<string, unknown> }) {
+  // Determine row status color from common fields
+  const status = item.status ?? item.success ?? item.scheduled;
+  const isSuccess = status === true || status === "completed" || status === "healthy" || status === "expiring";
+  const isFailed = status === false || status === "failed" || status === "expired";
+  const isSkipped = status === "skipped" || item.scheduled === false;
+
+  const statusColor = isFailed ? "red" : isSkipped ? "yellow" : isSuccess ? "green" : "gray";
+  const StatusIcon = isFailed ? IconCircleX : isSkipped ? IconArrowForward : isSuccess ? IconCircleCheck : IconLoader;
+
+  // Pick a label from common fields
+  const label = (item.accountName ?? item.organizationId ?? item.email ?? item.awsAccountId ?? "") as string;
+
+  return (
+    <Paper p="xs" radius="sm" withBorder>
+      <Group gap="xs" justify="space-between">
+        <Group gap="xs">
+          <StatusIcon size={14} color={`var(--mantine-color-${statusColor}-6)`} />
+          {label && <Text size="xs" fw={500}>{label}</Text>}
+        </Group>
+        <Group gap={6}>
+          {Object.entries(item).map(([k, v]) => {
+            // Skip the label field and complex values
+            if (k === "accountName" || k === "organizationId" || k === "email" || k === "awsAccountId") return null;
+            if (typeof v === "object" && v !== null) return null;
+            if (k === "scheduled" || k === "success") {
+              return (
+                <Badge key={k} size="xs" color={v ? "green" : "red"} variant="light">
+                  {v ? "OK" : "Skipped"}
+                </Badge>
+              );
+            }
+            if (k === "status") {
+              return <Badge key={k} size="xs" color={statusColor} variant="light">{String(v)}</Badge>;
+            }
+            if (k === "alertCreated") {
+              return v ? <Badge key={k} size="xs" color="orange" variant="light">Alert created</Badge> : null;
+            }
+            if (k === "emailsSent") {
+              return <Badge key={k} size="xs" color="blue" variant="light">{String(v)} emails</Badge>;
+            }
+            if (k === "reason") {
+              return <Text key={k} size="xs" c="dimmed">{String(v)}</Text>;
+            }
+            return (
+              <Text key={k} size="xs" c="dimmed">{formatFieldLabel(k)}: {String(v)}</Text>
+            );
+          })}
+        </Group>
+      </Group>
+    </Paper>
+  );
+}
+
+// ============================================================================
 // Execution Log Modal
 // ============================================================================
 
@@ -647,8 +794,10 @@ function ExecutionLogModal({
     schedule ? { cronScheduleId: schedule._id } : "skip"
   ) as ExecutionLog[] | undefined;
 
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
   return (
-    <Modal opened={opened} onClose={onClose} title={`Execution Log: ${schedule?.name ?? ""}`} size="lg">
+    <Modal opened={opened} onClose={onClose} title={`Execution Log: ${schedule?.name ?? ""}`} size="xl">
       {!logs ? (
         <Stack gap="sm">
           {[1, 2, 3].map((i) => (
@@ -658,55 +807,86 @@ function ExecutionLogModal({
       ) : logs.length === 0 ? (
         <Text c="dimmed" ta="center" py="lg">No executions recorded yet.</Text>
       ) : (
-        <Table striped highlightOnHover>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Time</Table.Th>
-              <Table.Th>Trigger</Table.Th>
-              <Table.Th>Status</Table.Th>
-              <Table.Th>Duration</Table.Th>
-              <Table.Th>Details</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {logs.map((log) => (
-              <Table.Tr key={log._id}>
-                <Table.Td>
-                  <Tooltip label={formatDateTime(log.startedAt)}>
-                    <Text size="sm">{formatRelativeTime(log.startedAt)}</Text>
-                  </Tooltip>
-                </Table.Td>
-                <Table.Td>
-                  <Badge size="xs" variant="outline" color={log.trigger === "manual" ? "violet" : "gray"}>
-                    {log.trigger}
-                  </Badge>
-                </Table.Td>
-                <Table.Td>
-                  <Badge size="xs" color={getStatusColor(log.status)}>
-                    {log.status}
-                  </Badge>
-                </Table.Td>
-                <Table.Td>
-                  <Text size="sm">{log.durationMs != null ? formatDuration(log.durationMs) : "—"}</Text>
-                </Table.Td>
-                <Table.Td>
-                  {log.errorMessage ? (
-                    <Tooltip label={log.errorMessage} multiline w={300}>
-                      <Text size="xs" c="red" lineClamp={1}>{log.errorMessage}</Text>
-                    </Tooltip>
-                  ) : log.resultSummary ? (
-                    <Text size="xs" c="dimmed" lineClamp={1}>{log.resultSummary}</Text>
-                  ) : (
-                    <Text size="xs" c="dimmed">—</Text>
-                  )}
-                </Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
+        <ScrollArea.Autosize mah="70vh">
+          <Stack gap="xs">
+            {logs.map((log) => {
+              const isExpanded = expandedId === log._id;
+              const hasDetail = !!(log.resultSummary || log.errorMessage);
+              return (
+                <Paper
+                  key={log._id}
+                  p="sm"
+                  radius="sm"
+                  withBorder
+                  style={{ cursor: hasDetail ? "pointer" : "default" }}
+                  onClick={() => hasDetail && setExpandedId(isExpanded ? null : log._id)}
+                >
+                  {/* Summary row */}
+                  <Group justify="space-between">
+                    <Group gap="sm">
+                      {hasDetail && (
+                        isExpanded
+                          ? <IconChevronDown size={14} color="var(--mantine-color-dimmed)" />
+                          : <IconChevronRight size={14} color="var(--mantine-color-dimmed)" />
+                      )}
+                      <Tooltip label={formatDateTime(log.startedAt)}>
+                        <Text size="sm" fw={500}>{formatRelativeTime(log.startedAt)}</Text>
+                      </Tooltip>
+                      <Badge size="xs" variant="outline" color={log.trigger === "manual" ? "violet" : "gray"}>
+                        {log.trigger}
+                      </Badge>
+                      <Badge size="xs" color={getStatusColor(log.status)}>
+                        {log.status}
+                      </Badge>
+                      {log.durationMs != null && (
+                        <Text size="xs" c="dimmed">{formatDuration(log.durationMs)}</Text>
+                      )}
+                    </Group>
+                    {!isExpanded && log.resultSummary && !log.errorMessage && (
+                      <Text size="xs" c="dimmed" lineClamp={1} maw={200}>
+                        {tryFormatResultBrief(log.resultSummary)}
+                      </Text>
+                    )}
+                    {!isExpanded && log.errorMessage && (
+                      <Text size="xs" c="red" lineClamp={1} maw={200}>{log.errorMessage}</Text>
+                    )}
+                  </Group>
+
+                  {/* Expanded detail */}
+                  <Collapse in={isExpanded}>
+                    <Box mt="sm" pt="sm" style={{ borderTop: "1px solid var(--mantine-color-gray-3)" }}>
+                      <ResultDetail resultSummary={log.resultSummary} errorMessage={log.errorMessage} />
+                    </Box>
+                  </Collapse>
+                </Paper>
+              );
+            })}
+          </Stack>
+        </ScrollArea.Autosize>
       )}
     </Modal>
   );
+}
+
+/** Format a brief one-line summary from JSON result */
+function tryFormatResultBrief(resultSummary: string): string {
+  try {
+    const parsed = JSON.parse(resultSummary);
+    if (typeof parsed !== "object" || parsed === null) return resultSummary;
+
+    const parts: string[] = [];
+    for (const [key, value] of Object.entries(parsed)) {
+      if (typeof value === "number") {
+        parts.push(`${formatFieldLabel(key)}: ${value}`);
+      }
+      if (typeof value === "boolean") {
+        parts.push(`${formatFieldLabel(key)}: ${value ? "Yes" : "No"}`);
+      }
+    }
+    return parts.length > 0 ? parts.join(" | ") : resultSummary;
+  } catch {
+    return resultSummary;
+  }
 }
 
 // ============================================================================

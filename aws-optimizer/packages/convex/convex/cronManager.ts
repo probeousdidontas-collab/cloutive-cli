@@ -221,15 +221,25 @@ export const executeJob = internalAction({
         status: "running",
       });
 
-      // Dispatch the handler
+      // Dispatch the handler and capture result
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await ctx.runAction(handler as any, {});
+      const result = await ctx.runAction(handler as any, {});
+
+      // Serialize the result for storage
+      let resultSummary = "Job completed successfully";
+      try {
+        if (result !== undefined && result !== null) {
+          resultSummary = JSON.stringify(result);
+        }
+      } catch {
+        resultSummary = "Job completed (result not serializable)";
+      }
 
       // Mark as completed
       await ctx.runMutation(internal.cronManager.completeExecutionLog, {
         logId: args.logId,
         status: "completed",
-        resultSummary: "Job completed successfully",
+        resultSummary,
       });
       await ctx.runMutation(internal.cronManager.updateScheduleAfterRun, {
         scheduleId: args.scheduleId,
