@@ -13,7 +13,9 @@
     "dev:sandbox": "npm run dev --workspace=apps/sandbox",
     "build": "npm run build --workspaces",
     "lint": "npm run lint --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present"
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "check:convex": "node scripts/check-convex-sync.mjs",
+    "check:convex:deployed": "node scripts/check-convex-sync.mjs --deployed"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",
