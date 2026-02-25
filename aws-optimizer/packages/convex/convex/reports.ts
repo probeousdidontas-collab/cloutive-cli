@@ -85,6 +85,7 @@ export const list = query({
       createdAt: report.createdAt,
       completedAt: report.generatedAt || null,
       hasContent: !!report.content,
+      hasReportData: !!report.reportData,
       errorMessage: report.errorMessage,
       // Progress tracking fields
       progressStep: report.progressStep,
@@ -118,6 +119,7 @@ export const get = query({
       format: "pdf" as const,
       status: report.status,
       content: report.content,
+      reportData: report.reportData,
       downloadUrl: report.fileUrl || null,
       createdAt: report.createdAt,
       completedAt: report.generatedAt || null,
@@ -205,6 +207,59 @@ export const generate = mutation({
       reportType: schemaType,
       reportTitle: args.name,
       awsAccountIds: args.awsAccountIds,
+    });
+
+    return { reportId };
+  },
+});
+
+/**
+ * Generate a new Cost Analysis report.
+ * This uses the structured data pipeline (not AI markdown).
+ */
+export const generateCostAnalysis = mutation({
+  args: {
+    organizationId: v.optional(v.id("organizations")),
+    name: v.string(),
+    awsAccountIds: v.optional(v.array(v.id("awsAccounts"))),
+    trendMonths: v.optional(v.number()),
+    topAccountCount: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    let organizationId: Id<"organizations"> | null = args.organizationId ?? null;
+
+    if (!organizationId && !isTestMode()) {
+      organizationId = await getUserOrgId(ctx);
+    }
+
+    if (!organizationId && isTestMode()) {
+      const firstOrg = await ctx.db.query("organizations").first();
+      organizationId = firstOrg?._id ?? null;
+    }
+
+    if (!organizationId) {
+      throw new Error("No organization found. Please create an organization first.");
+    }
+
+    const now = Date.now();
+
+    const reportId = await ctx.db.insert("reports", {
+      organizationId,
+      type: "cost_analysis",
+      title: args.name,
+      status: "pending",
+      awsAccountIds: args.awsAccountIds,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await ctx.scheduler.runAfter(0, internal.ai.costAnalysisReport.generateCostAnalysisReport, {
+      reportId,
+      organizationId,
+      reportTitle: args.name,
+      awsAccountIds: args.awsAccountIds,
+      trendMonths: args.trendMonths,
+      topAccountCount: args.topAccountCount,
     });
 
     return { reportId };
