@@ -369,6 +369,7 @@ function FeedbackCard({ feedback, onView }: { feedback: FeedbackItem; onView: ()
               <IconEye size={16} />
             </ActionIcon>
           </Tooltip>
+          <CopyAiPromptButton type="feedback" report={feedback} />
           <Tooltip label="Archive">
             <ActionIcon variant="subtle" color="red" onClick={handleArchive}>
               <IconArchive size={16} />
@@ -510,6 +511,7 @@ function FeedbackDetailModal({
             {getFeedbackStatusLabel(feedback.status)}
           </Badge>
           {feedback.ticketNumber && <Badge variant="outline">{feedback.ticketNumber}</Badge>}
+          <CopyAiPromptButton type="feedback" report={feedback} />
         </Group>
 
         <Box>
