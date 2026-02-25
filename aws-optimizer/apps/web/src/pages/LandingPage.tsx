@@ -230,7 +230,7 @@ function HeroSection() {
 
 function FeaturesSection() {
   return (
-    <Box data-testid="features-section" py={80} bg="gray.0">
+    <Box data-testid="features-section" py={80} bg="var(--mantine-color-default-hover)">
       <Container size="lg">
         <Stack align="center" gap="xl">
           <Badge size="lg" variant="light" color="orange">
@@ -375,7 +375,7 @@ function PricingSection() {
 
 function TestimonialsSection() {
   return (
-    <Box data-testid="testimonials-section" py={80} bg="gray.0">
+    <Box data-testid="testimonials-section" py={80} bg="var(--mantine-color-default-hover)">
       <Container size="lg">
         <Stack align="center" gap="xl">
           <Badge size="lg" variant="light" color="orange">

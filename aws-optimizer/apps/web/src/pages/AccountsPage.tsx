@@ -1588,12 +1588,12 @@ export const AccountsPage = observer(function AccountsPage() {
                   onDragLeave={handleDragLeave}
                   onClick={() => fileInputRef.current?.click()}
                   style={{
-                    border: `2px dashed ${isDragging ? theme.colors.blue[5] : theme.colors.gray[4]}`,
+                    border: `2px dashed ${isDragging ? "var(--mantine-color-blue-5)" : "var(--mantine-color-default-border)"}`,
                     borderRadius: theme.radius.md,
                     padding: rem(40),
                     textAlign: "center",
                     cursor: "pointer",
-                    backgroundColor: isDragging ? theme.colors.blue[0] : "transparent",
+                    backgroundColor: isDragging ? "var(--mantine-color-blue-light)" : "transparent",
                     transition: "all 0.2s ease",
                   }}
                 >
@@ -1744,11 +1744,11 @@ export const AccountsPage = observer(function AccountsPage() {
 
                       {/* Detected Account Info */}
                       {fileDetectedAccount && (
-                        <Paper withBorder p="sm" bg="green.0">
+                        <Paper withBorder p="sm" bg="var(--mantine-color-green-light)">
                           <Group gap="sm">
                             <IconCheck size={20} color="var(--mantine-color-green-6)" />
                             <Stack gap={4} style={{ flex: 1 }}>
-                              <Text size="sm" fw={500} c="green.8">
+                              <Text size="sm" fw={500} c="green">
                                 Credentials verified successfully!
                               </Text>
                               <Group gap="xs">
@@ -1904,11 +1904,11 @@ export const AccountsPage = observer(function AccountsPage() {
 
               {/* Detected Account Info */}
               {keyDetectedAccount && (
-                <Paper withBorder p="sm" bg="green.0">
+                <Paper withBorder p="sm" bg="var(--mantine-color-green-light)">
                   <Group gap="sm">
                     <IconCheck size={20} color="var(--mantine-color-green-6)" />
                     <Stack gap={4} style={{ flex: 1 }}>
-                      <Text size="sm" fw={500} c="green.8">
+                      <Text size="sm" fw={500} c="green">
                         Credentials verified successfully!
                       </Text>
                       <Group gap="xs">

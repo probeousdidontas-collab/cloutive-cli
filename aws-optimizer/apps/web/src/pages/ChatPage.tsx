@@ -191,7 +191,7 @@ export function ChatPage() {
         w={280}
         p="md"
         withBorder
-        style={{ borderRight: "1px solid var(--mantine-color-gray-3)", flexShrink: 0 }}
+        style={{ borderRight: "1px solid var(--mantine-color-default-border)", flexShrink: 0 }}
       >
         <Stack gap="sm" h="100%">
           <Button
@@ -295,7 +295,7 @@ export function ChatPage() {
         </ScrollArea>
 
         {/* Chat Input */}
-        <Paper p="md" withBorder style={{ borderTop: "1px solid var(--mantine-color-gray-3)" }}>
+        <Paper p="md" withBorder style={{ borderTop: "1px solid var(--mantine-color-default-border)" }}>
           <Group gap="sm" maw={800} mx="auto">
             <TextInput
               data-testid="chat-input"

@@ -415,7 +415,7 @@ function BugDetailModal({
         {bug.aiSummary && (
           <Box>
             <Text size="sm" fw={500} mb="xs">AI Summary</Text>
-            <Paper p="sm" withBorder bg="gray.0">
+            <Paper p="sm" withBorder bg="var(--mantine-color-default-hover)">
               <Text size="sm">{bug.aiSummary}</Text>
             </Paper>
           </Box>
@@ -424,7 +424,7 @@ function BugDetailModal({
         {bug.aiRootCauseAnalysis && (
           <Box>
             <Text size="sm" fw={500} mb="xs">Root Cause Analysis</Text>
-            <Paper p="sm" withBorder bg="gray.0">
+            <Paper p="sm" withBorder bg="var(--mantine-color-default-hover)">
               <Text size="sm">{bug.aiRootCauseAnalysis}</Text>
             </Paper>
           </Box>
@@ -433,7 +433,7 @@ function BugDetailModal({
         {bug.aiSuggestedFix && (
           <Box>
             <Text size="sm" fw={500} mb="xs">Suggested Fix</Text>
-            <Paper p="sm" withBorder bg="gray.0">
+            <Paper p="sm" withBorder bg="var(--mantine-color-default-hover)">
               <Text size="sm">{bug.aiSuggestedFix}</Text>
             </Paper>
           </Box>
@@ -522,7 +522,7 @@ function FeedbackDetailModal({
         {feedback.aiSummary && (
           <Box>
             <Text size="sm" fw={500} mb="xs">AI Summary</Text>
-            <Paper p="sm" withBorder bg="gray.0">
+            <Paper p="sm" withBorder bg="var(--mantine-color-default-hover)">
               <Text size="sm">{feedback.aiSummary}</Text>
             </Paper>
           </Box>
@@ -531,7 +531,7 @@ function FeedbackDetailModal({
         {feedback.aiImpactAnalysis && (
           <Box>
             <Text size="sm" fw={500} mb="xs">Impact Analysis</Text>
-            <Paper p="sm" withBorder bg="gray.0">
+            <Paper p="sm" withBorder bg="var(--mantine-color-default-hover)">
               <Text size="sm">{feedback.aiImpactAnalysis}</Text>
             </Paper>
           </Box>
@@ -540,7 +540,7 @@ function FeedbackDetailModal({
         {feedback.aiActionItems && feedback.aiActionItems.length > 0 && (
           <Box>
             <Text size="sm" fw={500} mb="xs">Action Items</Text>
-            <Paper p="sm" withBorder bg="gray.0">
+            <Paper p="sm" withBorder bg="var(--mantine-color-default-hover)">
               <Stack gap="xs">
                 {feedback.aiActionItems.map((item, i) => (
                   <Group key={i} gap="xs">

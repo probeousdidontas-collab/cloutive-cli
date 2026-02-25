@@ -413,7 +413,7 @@ function CronScheduleBuilder({
       )}
 
       {/* Result preview */}
-      <Paper p="xs" radius="sm" bg="gray.0" withBorder>
+      <Paper p="xs" radius="sm" bg="var(--mantine-color-default-hover)" withBorder>
         <Group gap="xs" mb={4}>
           <IconCalendar size={14} color="var(--mantine-color-dimmed)" />
           <Text size="xs" fw={500} c="dimmed">Preview</Text>
@@ -645,10 +645,10 @@ function CreateScheduleModal({
 function ResultDetail({ resultSummary, errorMessage }: { resultSummary?: string; errorMessage?: string }) {
   if (errorMessage) {
     return (
-      <Paper p="sm" radius="sm" bg="red.0" withBorder style={{ borderColor: "var(--mantine-color-red-3)" }}>
+      <Paper p="sm" radius="sm" bg="var(--mantine-color-red-light)" withBorder style={{ borderColor: "var(--mantine-color-red-outline)" }}>
         <Group gap="xs" mb={4}>
           <IconCircleX size={14} color="var(--mantine-color-red-6)" />
-          <Text size="xs" fw={600} c="red.7">Error</Text>
+          <Text size="xs" fw={600} c="red">Error</Text>
         </Group>
         <Code block style={{ whiteSpace: "pre-wrap", fontSize: 12 }}>{errorMessage}</Code>
       </Paper>
@@ -666,7 +666,7 @@ function ResultDetail({ resultSummary, errorMessage }: { resultSummary?: string;
   } catch {
     // Not JSON, render as plain text
     return (
-      <Paper p="sm" radius="sm" bg="gray.0" withBorder>
+      <Paper p="sm" radius="sm" bg="var(--mantine-color-default-hover)" withBorder>
         <Text size="sm">{resultSummary}</Text>
       </Paper>
     );
@@ -674,7 +674,7 @@ function ResultDetail({ resultSummary, errorMessage }: { resultSummary?: string;
 
   if (!parsed || typeof parsed !== "object") {
     return (
-      <Paper p="sm" radius="sm" bg="gray.0" withBorder>
+      <Paper p="sm" radius="sm" bg="var(--mantine-color-default-hover)" withBorder>
         <Text size="sm">{resultSummary}</Text>
       </Paper>
     );
@@ -687,7 +687,7 @@ function ResultDetail({ resultSummary, errorMessage }: { resultSummary?: string;
         {Object.entries(parsed).map(([key, value]) => {
           if (typeof value === "number" || typeof value === "string" || typeof value === "boolean") {
             return (
-              <Paper key={key} p="xs" radius="sm" bg="gray.0" withBorder>
+              <Paper key={key} p="xs" radius="sm" bg="var(--mantine-color-default-hover)" withBorder>
                 <Text size="xs" c="dimmed" tt="uppercase" fw={600}>{formatFieldLabel(key)}</Text>
                 <Text size="sm" fw={600}>{String(value)}</Text>
               </Paper>
@@ -854,7 +854,7 @@ function ExecutionLogModal({
 
                   {/* Expanded detail */}
                   <Collapse in={isExpanded}>
-                    <Box mt="sm" pt="sm" style={{ borderTop: "1px solid var(--mantine-color-gray-3)" }}>
+                    <Box mt="sm" pt="sm" style={{ borderTop: "1px solid var(--mantine-color-default-border)" }}>
                       <ResultDetail resultSummary={log.resultSummary} errorMessage={log.errorMessage} />
                     </Box>
                   </Collapse>

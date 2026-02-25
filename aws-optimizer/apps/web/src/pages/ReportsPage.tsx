@@ -331,7 +331,7 @@ function CostAnalysisPreview({ data }: { data: CostAnalysisReportData }) {
 
         {/* Executive Insights */}
         {data.executiveInsights && (
-          <Card withBorder p="md" radius="md" bg="indigo.0">
+          <Card withBorder p="md" radius="md" bg="var(--mantine-color-indigo-light)">
             <Group gap="xs" mb="xs">
               <IconRobot size={16} />
               <Text size="sm" fw={600}>AI Executive Insights</Text>
@@ -410,7 +410,7 @@ function CostAnalysisPreview({ data }: { data: CostAnalysisReportData }) {
 
             {/* AI Insights */}
             {account.aiInsights && (
-              <Card withBorder p="sm" radius="md" bg="gray.0" mb="sm">
+              <Card withBorder p="sm" radius="md" bg="var(--mantine-color-default-hover)" mb="sm">
                 <Text size="xs" fw={600} c="dimmed" mb={4}>AI INSIGHTS</Text>
                 <Text size="sm">{account.aiInsights}</Text>
               </Card>
@@ -422,9 +422,9 @@ function CostAnalysisPreview({ data }: { data: CostAnalysisReportData }) {
                 <Text size="sm" fw={600} mb="xs">Root Cause Analysis</Text>
                 <Stack gap="xs">
                   {account.rootCauseAnalysis.map((svc, i) => (
-                    <Card key={i} withBorder p="xs" radius="sm" bg="red.0">
+                    <Card key={i} withBorder p="xs" radius="sm" bg="var(--mantine-color-red-light)">
                       <Group justify="space-between">
-                        <Text size="sm" fw={500} c="red.7">{svc.serviceName}</Text>
+                        <Text size="sm" fw={500} c="red">{svc.serviceName}</Text>
                         <Text size="sm" c="red">+{fmt(svc.change)}</Text>
                       </Group>
                       {svc.usageTypes.map((ut, j) => (
@@ -1337,13 +1337,13 @@ export const ReportsPage = observer(function ReportsPage() {
             return (
               <Stack gap="lg" py="md">
                 {/* Error Header */}
-                <Card withBorder p="lg" radius="md" bg="red.0">
+                <Card withBorder p="lg" radius="md" bg="var(--mantine-color-red-light)">
                   <Group gap="md" align="flex-start">
                     <ThemeIcon size="xl" radius="xl" color={getErrorColor(parsedError.category)} variant="light">
                       {getErrorIcon(parsedError.category)}
                     </ThemeIcon>
                     <Stack gap={4} style={{ flex: 1 }}>
-                      <Text fw={600} size="lg" c="red.7">
+                      <Text fw={600} size="lg" c="red">
                         {parsedError.message}
                       </Text>
                       <Badge 
@@ -1372,12 +1372,12 @@ export const ReportsPage = observer(function ReportsPage() {
 
                 {/* Suggestion */}
                 {parsedError.suggestion && (
-                  <Card withBorder p="md" radius="md" bg="blue.0">
+                  <Card withBorder p="md" radius="md" bg="var(--mantine-color-blue-light)">
                     <Group gap="xs" mb="xs">
                       <IconInfoCircle size={16} color="var(--mantine-color-blue-6)" />
-                      <Text size="sm" fw={500} c="blue.7">Suggested Action</Text>
+                      <Text size="sm" fw={500} c="blue">Suggested Action</Text>
                     </Group>
-                    <Text size="sm" c="blue.9">
+                    <Text size="sm">
                       {parsedError.suggestion}
                     </Text>
                   </Card>
@@ -1385,9 +1385,9 @@ export const ReportsPage = observer(function ReportsPage() {
 
                 {/* Quick Actions based on error type */}
                 {parsedError.category === "configuration" && (
-                  <Card withBorder p="md" radius="md" bg="orange.0">
+                  <Card withBorder p="md" radius="md" bg="var(--mantine-color-orange-light)">
                     <Stack gap="xs">
-                      <Text size="sm" fw={500} c="orange.7">Configuration Required</Text>
+                      <Text size="sm" fw={500} c="orange">Configuration Required</Text>
                       <Text size="sm" c="dimmed">
                         The AI service API key needs to be configured in your Convex dashboard.
                       </Text>
@@ -1408,9 +1408,9 @@ export const ReportsPage = observer(function ReportsPage() {
                 )}
 
                 {parsedError.category === "no_accounts" && (
-                  <Card withBorder p="md" radius="md" bg="yellow.0">
+                  <Card withBorder p="md" radius="md" bg="var(--mantine-color-yellow-light)">
                     <Stack gap="xs">
-                      <Text size="sm" fw={500} c="yellow.8">No AWS Accounts Connected</Text>
+                      <Text size="sm" fw={500} c="yellow">No AWS Accounts Connected</Text>
                       <Text size="sm" c="dimmed">
                         You need to connect at least one AWS account before generating reports.
                       </Text>
