@@ -59,6 +59,8 @@ import {
 } from "@tabler/icons-react";
 import { marked } from "marked";
 import { ReportPdfDocument } from "../components/ReportPdfDocument";
+import { CostAnalysisReportPdf } from "../components/CostAnalysisReportPdf";
+import type { CostAnalysisReportData } from "@aws-optimizer/convex/convex/ai/costAnalysisTypes";
 import { useQuery, useMutation } from "convex/react";
 import { observer } from "mobx-react-lite";
 import { api } from "@aws-optimizer/convex/convex/_generated/api";
@@ -96,6 +98,7 @@ interface Report {
   createdAt: number;
   completedAt: number | null;
   hasContent?: boolean;
+  hasReportData?: boolean;
   errorMessage?: string;
   // Progress tracking
   progressStep?: number;
@@ -110,6 +113,7 @@ interface ReportDetail {
   format: ReportFormat;
   status: ReportStatus;
   content?: string;
+  reportData?: string;
   downloadUrl: string | null;
   createdAt: number;
   completedAt: number | null;
@@ -366,6 +370,7 @@ export const ReportsPage = observer(function ReportsPage() {
 
   // Mutations
   const generateReport = useMutation(api.reports.generate);
+  const generateCostAnalysis = useMutation(api.reports.generateCostAnalysis);
   const createSchedule = useMutation(api.reports.createSchedule);
   const deleteSchedule = useMutation(api.reports.deleteSchedule);
   const toggleSchedule = useMutation(api.reports.toggleSchedule);
@@ -438,14 +443,23 @@ export const ReportsPage = observer(function ReportsPage() {
   // Handle generate report
   const handleGenerateReport = useCallback(async () => {
     const awsAccountIdsArg = selectedAwsAccountIds.length > 0 ? selectedAwsAccountIds : undefined;
-    if (IS_TEST_MODE) {
-      await generateReport({ name: reportName, type: reportType, format: reportFormat, awsAccountIds: awsAccountIdsArg });
+    if (reportType === "summary") {
+      // Use cost analysis pipeline for summary reports
+      if (IS_TEST_MODE) {
+        await generateCostAnalysis({ name: reportName, awsAccountIds: awsAccountIdsArg });
+      } else {
+        await generateCostAnalysis({ organizationId: organizationId!, name: reportName, awsAccountIds: awsAccountIdsArg });
+      }
     } else {
-      await generateReport({ organizationId: organizationId!, name: reportName, type: reportType, format: reportFormat, awsAccountIds: awsAccountIdsArg });
+      if (IS_TEST_MODE) {
+        await generateReport({ name: reportName, type: reportType, format: reportFormat, awsAccountIds: awsAccountIdsArg });
+      } else {
+        await generateReport({ organizationId: organizationId!, name: reportName, type: reportType, format: reportFormat, awsAccountIds: awsAccountIdsArg });
+      }
     }
     closeGenerateModal();
     resetGenerateForm();
-  }, [reportName, reportType, reportFormat, selectedAwsAccountIds, organizationId, generateReport, closeGenerateModal, resetGenerateForm]);
+  }, [reportName, reportType, reportFormat, selectedAwsAccountIds, organizationId, generateReport, generateCostAnalysis, closeGenerateModal, resetGenerateForm]);
 
   // Handle view report
   const handleViewReport = useCallback((reportId: string) => {
@@ -470,18 +484,29 @@ export const ReportsPage = observer(function ReportsPage() {
 
   // Handle PDF export
   const handleExportPdf = useCallback(async () => {
-    if (!reportDetail?.content) return;
+    if (!reportDetail) return;
 
     setIsExportingPdf(true);
     try {
-      const blob = await pdf(
-        <ReportPdfDocument
-          title={reportDetail.name}
-          content={reportDetail.content}
-          reportType={reportDetail.type}
-          generatedAt={reportDetail.completedAt || undefined}
-        />
-      ).toBlob();
+      let blob: Blob;
+
+      if (reportDetail.reportData) {
+        // Cost analysis report with structured data
+        const data: CostAnalysisReportData = JSON.parse(reportDetail.reportData);
+        blob = await pdf(<CostAnalysisReportPdf data={data} />).toBlob();
+      } else if (reportDetail.content) {
+        // Markdown-based report
+        blob = await pdf(
+          <ReportPdfDocument
+            title={reportDetail.name}
+            content={reportDetail.content}
+            reportType={reportDetail.type}
+            generatedAt={reportDetail.completedAt || undefined}
+          />
+        ).toBlob();
+      } else {
+        return;
+      }
 
       // Create download link
       const url = URL.createObjectURL(blob);
@@ -788,7 +813,7 @@ export const ReportsPage = observer(function ReportsPage() {
                       </Table.Td>
                       <Table.Td>
                         <Group gap="xs">
-                          {report.status === "completed" && report.hasContent && (
+                          {report.status === "completed" && (report.hasContent || report.hasReportData) && (
                             <Tooltip label="View report">
                               <ActionIcon
                                 variant="light"
@@ -1320,7 +1345,7 @@ export const ReportsPage = observer(function ReportsPage() {
               This may take a few minutes.
             </Text>
           </Stack>
-        ) : reportDetail.content ? (
+        ) : reportDetail.content || reportDetail.reportData ? (
           <Stack gap="md">
             <Group justify="space-between" align="center">
               <Group gap="xs">
@@ -1345,11 +1370,20 @@ export const ReportsPage = observer(function ReportsPage() {
               </Button>
             </Group>
             <Divider />
-            <ScrollArea h={500} type="auto">
-              <TypographyStylesProvider>
-                <div dangerouslySetInnerHTML={{ __html: renderedContent }} />
-              </TypographyStylesProvider>
-            </ScrollArea>
+            {reportDetail.reportData ? (
+              <Stack gap="sm">
+                <Text fw={600}>Cost Analysis Report</Text>
+                <Text size="sm" c="dimmed">
+                  This is a structured cost analysis report. Click "Export PDF" to download the full report with charts and tables.
+                </Text>
+              </Stack>
+            ) : (
+              <ScrollArea h={500} type="auto">
+                <TypographyStylesProvider>
+                  <div dangerouslySetInnerHTML={{ __html: renderedContent }} />
+                </TypographyStylesProvider>
+              </ScrollArea>
+            )}
           </Stack>
         ) : (
           <Stack align="center" py="xl">

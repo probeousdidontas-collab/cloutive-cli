@@ -1,4 +1,3 @@
-import React from "react";
 import { View, Text, StyleSheet, Svg, Rect, Line } from "@react-pdf/renderer";
 
 const styles = StyleSheet.create({
