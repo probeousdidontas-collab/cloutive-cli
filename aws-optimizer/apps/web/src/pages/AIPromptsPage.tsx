@@ -13,6 +13,7 @@ import {
 import { useQuery } from "convex/react";
 import { api } from "@aws-optimizer/convex/convex/_generated/api";
 import type { Id } from "@aws-optimizer/convex/convex/_generated/dataModel";
+import { PromptList } from "../components/prompts/PromptList";
 
 export const AIPromptsPage = observer(function AIPromptsPage() {
   const promptsData = useQuery(api.reportPrompts.list);
@@ -38,10 +39,13 @@ export const AIPromptsPage = observer(function AIPromptsPage() {
       <Grid>
         <Grid.Col span={3}>
           <Paper withBorder p="sm">
-            <Text c="dimmed" size="sm">
-              {promptsData.systemDefaults.length} system defaults,{" "}
-              {promptsData.orgOverrides.length} overrides
-            </Text>
+            <PromptList
+              systemDefaults={promptsData.systemDefaults}
+              orgOverrides={promptsData.orgOverrides}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+              isAdmin={false}
+            />
           </Paper>
         </Grid.Col>
         <Grid.Col span={9}>
