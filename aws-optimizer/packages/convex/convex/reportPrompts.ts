@@ -115,22 +115,19 @@ export const list = query({
   handler: async (ctx, args) => {
     const organizationId = args.organizationId ?? (await getUserOrgId(ctx));
     if (!organizationId) {
-      return [];
+      return { systemDefaults: [], orgOverrides: [] };
     }
 
-    // Collect all system defaults — no dedicated by_system index, so full scan with filter
-    const systemPrompts = await ctx.db
-      .query("reportPrompts")
-      .filter((q) => q.eq(q.field("isSystem"), true))
-      .collect();
+    // Collect all prompts and split into system defaults and org overrides
+    const allPrompts = await ctx.db.query("reportPrompts").collect();
+    const systemDefaults = allPrompts.filter((p) => p.isSystem);
 
-    // Collect org overrides
-    const orgPrompts = await ctx.db
-      .query("reportPrompts")
-      .withIndex("by_org", (q) => q.eq("organizationId", organizationId))
-      .collect();
+    // Org overrides for the user's organization
+    const orgOverrides = allPrompts.filter(
+      (p) => !p.isSystem && p.organizationId === organizationId
+    );
 
-    return [...systemPrompts, ...orgPrompts];
+    return { systemDefaults, orgOverrides };
   },
 });
 
