@@ -1,5 +1,5 @@
 import { createRouter, createRootRoute, createRoute, Outlet } from "@tanstack/react-router";
-import { LoginPage, SignupPage, ForgotPasswordPage, ChatPage, AccountsPage, DashboardPage, CostExplorerPage, ResourcesPage, RecommendationsPage, TerminalPage, BudgetsPage, AlertsPage, ReportsPage, BillingPage, TeamPage, SettingsPage, PartnerPage, LandingPage, ActivityPage, AcceptInvitationPage, FeedbackAdminPage, CronManagementPage } from "./pages";
+import { LoginPage, SignupPage, ForgotPasswordPage, ChatPage, AccountsPage, DashboardPage, CostExplorerPage, ResourcesPage, RecommendationsPage, TerminalPage, BudgetsPage, AlertsPage, ReportsPage, BillingPage, TeamPage, SettingsPage, PartnerPage, LandingPage, ActivityPage, AcceptInvitationPage, FeedbackAdminPage, CronManagementPage, AIPromptsPage } from "./pages";
 import { AppLayout } from "./components/AppShell";
 
 // Root route - just renders Outlet, no layout
@@ -175,6 +175,13 @@ const cronManagementRoute = createRoute({
   component: CronManagementPage,
 });
 
+// AI Prompts route
+const aiPromptsRoute = createRoute({
+  getParentRoute: () => appLayoutRoute,
+  path: "/settings/prompts",
+  component: AIPromptsPage,
+});
+
 // Route tree - authLayoutRoute contains auth-related routes (no sidebar)
 // appLayoutRoute contains all authenticated routes (with sidebar)
 const routeTree = rootRoute.addChildren([
@@ -203,6 +210,7 @@ const routeTree = rootRoute.addChildren([
     partnerRoute,
     feedbackAdminRoute,
     cronManagementRoute,
+    aiPromptsRoute,
   ]),
 ]);
 

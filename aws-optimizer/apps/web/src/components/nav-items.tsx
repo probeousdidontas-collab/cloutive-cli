@@ -15,6 +15,7 @@ import {
   IconUsers,
   IconBug,
   IconClock,
+  IconRobot,
 } from "@tabler/icons-react";
 
 export interface NavItem {
@@ -40,4 +41,5 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Team", path: "/team", icon: <IconUsers size={20} /> },
   { label: "Feedback", path: "/feedback-admin", icon: <IconBug size={20} /> },
   { label: "Cron Jobs", path: "/cron-management", icon: <IconClock size={20} /> },
+  { label: "AI Prompts", path: "/settings/prompts", icon: <IconRobot size={20} /> },
 ];
