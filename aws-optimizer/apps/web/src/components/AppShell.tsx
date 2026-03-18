@@ -78,7 +78,7 @@ export function AppLayout() {
               size="sm"
               aria-label="Toggle navigation"
             />
-            <Title order={3}>AWS Cost Optimizer</Title>
+            <Title order={3}>AWS Manager</Title>
           </Group>
 
           <Group gap="sm">

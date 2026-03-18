@@ -3,7 +3,7 @@
  *
  * US-036: Implement cron jobs for scheduled analysis
  *
- * Scheduled tasks for the AWS Cost Optimizer:
+ * Scheduled tasks for the AWS Manager:
  * - Daily cost collection for all connected AWS accounts
  * - Uses Workpool for job prioritization (enterprise > professional > free)
  * - Uses ActionRetrier for graceful failure handling
@@ -1003,7 +1003,7 @@ export const sendWeeklySummaryEmail = internalAction({
           <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
           
           <p style="color: #6b7280; font-size: 14px; margin: 0;">
-            This is an automated weekly summary from AWS Cost Optimizer.
+            This is an automated weekly summary from AWS Manager.
             <br />To change your notification preferences, visit your organization settings.
           </p>
         </div>
@@ -1028,7 +1028,7 @@ ${summaryData.topRecommendations.map((r) => `- ${r.title}: Save $${r.estimatedSa
 
 ${totalPotentialSavings > 0 ? `Total Potential Monthly Savings: $${totalPotentialSavings.toFixed(2)}` : ""}
 
-This is an automated weekly summary from AWS Cost Optimizer.
+This is an automated weekly summary from AWS Manager.
     `.trim();
 
     // Send the email using the existing Resend infrastructure

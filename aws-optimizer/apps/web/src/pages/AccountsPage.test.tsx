@@ -60,7 +60,7 @@ const mockAccounts = [
 const mockCfTemplate = {
   template: JSON.stringify({
     AWSTemplateFormatVersion: "2010-09-09",
-    Description: "Creates an IAM role for AWS Cost Optimizer",
+    Description: "Creates an IAM role for AWS Manager",
   }),
 };
 

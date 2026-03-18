@@ -327,7 +327,7 @@ export function CostAnalysisReportPdf({ data }: CostAnalysisReportPdfProps) {
 function PageFooter() {
   return (
     <View style={styles.footer} fixed>
-      <Text style={styles.footerText}>AWS Cost Optimizer Report</Text>
+      <Text style={styles.footerText}>AWS Manager Report</Text>
       <Text
         style={styles.footerText}
         render={({ pageNumber, totalPages }) =>

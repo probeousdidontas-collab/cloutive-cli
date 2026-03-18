@@ -1,4 +1,4 @@
-# Plan: AWS Cost Optimizer SaaS Platform (AI-First)
+# Plan: AWS Manager SaaS Platform (AI-First)
 
 ## Overview
 

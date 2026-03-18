@@ -110,7 +110,7 @@ function generateCloudFormationTemplateContent(
 ): string {
   const template = {
     AWSTemplateFormatVersion: "2010-09-09",
-    Description: "Creates an IAM role for AWS Cost Optimizer platform access",
+    Description: "Creates an IAM role for AWS Manager platform access",
     Parameters: {
       ExternalId: {
         Type: "String",
@@ -152,7 +152,7 @@ function generateCloudFormationTemplateContent(
           Tags: [
             {
               Key: "Purpose",
-              Value: "AWS Cost Optimizer Platform Access",
+              Value: "AWS Manager Platform Access",
             },
             {
               Key: "ManagedBy",

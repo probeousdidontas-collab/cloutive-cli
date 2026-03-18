@@ -1,4 +1,4 @@
-# AWS Cost Optimizer
+# AWS Manager
 
 An AI-first SaaS platform for AWS cost analysis and optimization. Connect your AWS accounts and let our AI agent analyze your infrastructure, identify cost-saving opportunities, and generate actionable recommendations.
 
@@ -15,7 +15,7 @@ An AI-first SaaS platform for AWS cost analysis and optimization. Connect your A
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              AWS Cost Optimizer                              │
+│                              AWS Manager                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────────────────┐

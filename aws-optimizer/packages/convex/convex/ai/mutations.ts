@@ -282,7 +282,7 @@ const resend = new Resend(components.resend, {
 });
 
 // Default sender email address
-const DEFAULT_FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "AWS Cost Optimizer <alerts@awsoptimizer.com>";
+const DEFAULT_FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "AWS Manager <alerts@awsoptimizer.com>";
 
 /**
  * Internal action to send an email notification via Resend.
@@ -306,11 +306,11 @@ export const sendEmailNotification = internalAction({
       // Build email content - use html if provided, otherwise wrap message in basic HTML
       const htmlContent = args.html || `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #1a1a1a;">AWS Cost Optimizer Notification</h2>
+          <h2 style="color: #1a1a1a;">AWS Manager Notification</h2>
           <p style="color: #333; line-height: 1.6;">${args.message}</p>
           ${args.alertId ? `<p style="color: #666; font-size: 12px;">Alert ID: ${args.alertId}</p>` : ""}
           <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
-          <p style="color: #999; font-size: 12px;">This is an automated notification from AWS Cost Optimizer.</p>
+          <p style="color: #999; font-size: 12px;">This is an automated notification from AWS Manager.</p>
         </div>
       `;
 

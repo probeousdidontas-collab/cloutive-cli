@@ -15,6 +15,7 @@ import {
   Center,
   Loader,
   Button,
+
 } from "@mantine/core";
 import { DonutChart, AreaChart } from "@mantine/charts";
 import {
@@ -177,6 +178,15 @@ export const DashboardPage = observer(function DashboardPage() {
   const shouldQueryDashboard = isAuthenticated && isOrgReady && (IS_TEST_MODE || organizationId);
 
   // Fetch dashboard data - skip until we have the organization ID (or in test mode)
+  const connectedAccounts = useQuery(
+    api.dashboard.getConnectedAccounts,
+    shouldQueryDashboard
+      ? IS_TEST_MODE
+        ? {}
+        : { organizationId: organizationId! }
+      : "skip"
+  ) as { _id: string; name: string; accountNumber: string; status: string }[] | undefined;
+
   const costSnapshots = useQuery(
     api.dashboard.getCostSnapshots,
     shouldQueryDashboard
@@ -410,6 +420,39 @@ export const DashboardPage = observer(function DashboardPage() {
             {summary?.totalAccounts ?? 0} Account{(summary?.totalAccounts ?? 0) !== 1 ? "s" : ""} Connected
           </Badge>
         </Group>
+
+        {/* ── Connected Accounts ── */}
+        {connectedAccounts && connectedAccounts.length > 0 && (
+          <Paper data-testid="connected-accounts" withBorder p="md">
+            <Stack gap="sm">
+              <Group gap="xs">
+                <ThemeIcon variant="light" color="blue" size="md">
+                  <IconCloud size={18} />
+                </ThemeIcon>
+                <Title order={3}>Connected Accounts</Title>
+              </Group>
+              <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
+                {connectedAccounts.map((account) => (
+                  <Paper key={account._id} withBorder p="sm" radius="md">
+                    <Group justify="space-between" wrap="nowrap">
+                      <Stack gap={2}>
+                        <Text size="sm" fw={600}>{account.name}</Text>
+                        <Text size="xs" c="dimmed" ff="monospace">{account.accountNumber}</Text>
+                      </Stack>
+                      <Badge
+                        size="sm"
+                        variant="dot"
+                        color={account.status === "active" ? "green" : "gray"}
+                      >
+                        {account.status}
+                      </Badge>
+                    </Group>
+                  </Paper>
+                ))}
+              </SimpleGrid>
+            </Stack>
+          </Paper>
+        )}
 
         {/* ── Cost Overview ── */}
         <Stack gap="sm">

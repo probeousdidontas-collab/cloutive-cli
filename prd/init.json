@@ -1,5 +1,5 @@
 {
-  "project": "AWS Cost Optimizer SaaS Platform",
+  "project": "AWS Manager SaaS Platform",
   "branchName": "feature/aws-cost-optimizer",
   "description": "An AI-first SaaS platform for AWS cost analysis and optimization. The Convex Agent component drives all analysis workflows autonomously, with Cloudflare Containers providing secure sandbox execution of AWS CLI commands. Includes multi-tenancy, Stripe billing, and partner dashboards.",
   "userStories": [

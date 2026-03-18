@@ -134,7 +134,7 @@ const TESTIMONIALS = [
   {
     id: "1",
     quote:
-      "AWS Cost Optimizer helped us reduce our monthly AWS bill by 40%. The AI recommendations were spot-on and easy to implement.",
+      "AWS Manager helped us reduce our monthly AWS bill by 40%. The AI recommendations were spot-on and easy to implement.",
     author: "Sarah Chen",
     role: "CTO",
     company: "TechStartup Inc",
@@ -479,7 +479,7 @@ function Footer() {
         <Group justify="space-between" align="center">
           <Stack gap={4}>
             <Text c="white" fw={700}>
-              AWS Cost Optimizer
+              AWS Manager
             </Text>
             <Text c="dimmed" size="sm">
               © {new Date().getFullYear()} All rights reserved.

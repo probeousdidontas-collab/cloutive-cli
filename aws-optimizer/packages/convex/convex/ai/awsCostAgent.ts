@@ -1,5 +1,5 @@
 /**
- * AWS Cost Optimizer AI Agent
+ * AWS Manager AI Agent
  *
  * Implements US-014: Set up AI Agent with OpenRouter
  *
@@ -131,7 +131,7 @@ export const AWS_COST_AGENT_CONFIG = {
 };
 
 /**
- * All tools available to the AWS Cost Optimizer Agent.
+ * All tools available to the AWS Manager Agent.
  * 
  * AWS Command Tools:
  * - aws_listAccounts: List connected AWS accounts
@@ -152,7 +152,7 @@ export const AWS_COST_AGENT_TOOLS = {
 };
 
 /**
- * AWS Cost Optimizer Agent
+ * AWS Manager Agent
  *
  * This agent is configured with:
  * - OpenRouter with anthropic/claude-sonnet-4 model

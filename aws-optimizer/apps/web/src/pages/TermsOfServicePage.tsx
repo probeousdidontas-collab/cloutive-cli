@@ -22,14 +22,14 @@ export function TermsOfServicePage() {
           <Stack gap="md">
             <Title order={2} size="h4">1. Acceptance of Terms</Title>
             <Text>
-              By accessing or using AWS Cost Optimizer, you agree to be bound by these
+              By accessing or using AWS Manager, you agree to be bound by these
               Terms of Service. If you do not agree to these terms, please do not use
               our services.
             </Text>
 
             <Title order={2} size="h4">2. Description of Service</Title>
             <Text>
-              AWS Cost Optimizer provides cloud cost analysis and optimization recommendations
+              AWS Manager provides cloud cost analysis and optimization recommendations
               for Amazon Web Services. We help you identify savings opportunities and manage
               your cloud spending more effectively.
             </Text>

@@ -853,7 +853,7 @@ export const generateStackSetTemplate = query({
 
     const template = {
       AWSTemplateFormatVersion: "2010-09-09",
-      Description: "AWS Cost Optimizer IAM Role - Deployed via StackSets for Organizations member accounts",
+      Description: "AWS Manager IAM Role - Deployed via StackSets for Organizations member accounts",
       Parameters: {
         ExternalId: {
           Type: "String",
@@ -898,7 +898,7 @@ export const generateStackSetTemplate = query({
               "arn:aws:iam::aws:policy/SecurityAudit",
             ],
             Tags: [
-              { Key: "Purpose", Value: "AWS Cost Optimizer Platform Access" },
+              { Key: "Purpose", Value: "AWS Manager Platform Access" },
               { Key: "ManagedBy", Value: "CloudFormation StackSets" },
             ],
           },

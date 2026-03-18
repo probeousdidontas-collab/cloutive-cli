@@ -86,7 +86,7 @@ export function LoginPage() {
       <Container size={420} my={40}>
         <Center mb="xl">
           <Title c="white" order={1}>
-            AWS Cost Optimizer
+            AWS Manager
           </Title>
         </Center>
 

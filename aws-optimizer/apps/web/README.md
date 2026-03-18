@@ -1,6 +1,6 @@
 # AWS Optimizer Web Frontend
 
-React single-page application for the AWS Cost Optimizer platform.
+React single-page application for the AWS Manager platform.
 
 ## Tech Stack
 

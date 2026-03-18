@@ -494,3 +494,53 @@ export const getDashboardSummary = query({
     };
   },
 });
+
+/**
+ * Get connected AWS accounts for dashboard display.
+ * Returns account name, number, and status for all accounts in the organization.
+ * In test mode, returns sample accounts.
+ */
+export const getConnectedAccounts = query({
+  args: {
+    organizationId: v.optional(v.id("organizations")),
+  },
+  handler: async (ctx, args) => {
+    const { organizationId } = args;
+
+    // In test mode, return sample accounts
+    if (isTestMode()) {
+      return [
+        {
+          _id: "test-account-1" as Id<"awsAccounts">,
+          name: "Production",
+          accountNumber: "123456789012",
+          status: "active" as const,
+        },
+        {
+          _id: "test-account-2" as Id<"awsAccounts">,
+          name: "Development",
+          accountNumber: "987654321098",
+          status: "active" as const,
+        },
+      ];
+    }
+
+    if (!organizationId) {
+      return [];
+    }
+
+    const organization = await ctx.db.get(organizationId);
+    if (!organization) {
+      return [];
+    }
+
+    const awsAccounts = await getOrgAwsAccounts(ctx, organizationId);
+
+    return awsAccounts.map((account) => ({
+      _id: account._id,
+      name: account.name,
+      accountNumber: account.accountNumber,
+      status: account.status,
+    }));
+  },
+});

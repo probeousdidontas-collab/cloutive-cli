@@ -566,7 +566,7 @@ export function ReportPdfDocument({
         {elements.map((element, index) => renderElement(element, index))}
 
         {/* Footer */}
-        <Text style={styles.footer}>AWS Cost Optimizer Report</Text>
+        <Text style={styles.footer}>AWS Manager Report</Text>
         <Text
           style={styles.pageNumber}
           render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`}

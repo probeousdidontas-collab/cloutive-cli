@@ -1,4 +1,4 @@
-# Contributing to AWS Cost Optimizer
+# Contributing to AWS Manager
 
 Thank you for your interest in contributing! This document provides guidelines for development.
 

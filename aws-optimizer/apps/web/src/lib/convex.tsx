@@ -12,15 +12,14 @@ const convexUrl = import.meta.env.VITE_CONVEX_URL as string;
 
 // eslint-disable-next-line react-refresh/only-export-components
 function getConvexClientUrl(): string | null {
-  if (!convexUrl) return null;
-
   // Use proxy in production (when served from Cloudflare Worker)
+  // The Worker has VITE_CONVEX_URL at runtime and proxies /convex/* to Convex cloud
   if (import.meta.env.PROD) {
-    // Use relative URL to proxy through the same origin at /convex
     return `${window.location.origin}/convex`;
   }
 
-  // In development, connect directly to Convex
+  // In development, connect directly to Convex (requires VITE_CONVEX_URL in .env)
+  if (!convexUrl) return null;
   return convexUrl;
 }
 
@@ -61,14 +60,8 @@ export function getTestUserInfo() {
  */
 export function ConvexClientProvider({ children }: { children: ReactNode }) {
   if (!convex) {
-    console.warn("VITE_CONVEX_URL is not set. Running without Convex backend.");
-    // Create a dummy client for UI validation - queries will return undefined
-    const dummyClient = new ConvexReactClient("https://placeholder.convex.cloud");
-    return (
-      <ConvexProvider client={dummyClient}>
-        {children}
-      </ConvexProvider>
-    );
+    console.warn("Convex URL is not configured. Running without Convex backend.");
+    return <>{children}</>;
   }
 
   // In test mode, skip auth provider and use plain ConvexProvider

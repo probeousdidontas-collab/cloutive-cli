@@ -16,7 +16,7 @@ const resend = new Resend(components.resend, {
 });
 
 // Default sender email address
-const DEFAULT_FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "AWS Cost Optimizer <noreply@awsoptimizer.com>";
+const DEFAULT_FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "AWS Manager <noreply@awsoptimizer.com>";
 const SITE_URL = process.env.SITE_URL || "https://placeholder.convex.site";
 
 /**
@@ -43,7 +43,7 @@ export const sendInvitationEmail = internalAction({
     const htmlContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="text-align: center; margin-bottom: 30px;">
-          <h1 style="color: #ff6b00; margin: 0;">AWS Cost Optimizer</h1>
+          <h1 style="color: #ff6b00; margin: 0;">AWS Manager</h1>
         </div>
         
         <h2 style="color: #1a1a1a; margin-bottom: 20px;">You're invited to join ${organizationName}</h2>
@@ -54,7 +54,7 @@ export const sendInvitationEmail = internalAction({
         </p>
         
         <p style="color: #333; line-height: 1.6; font-size: 16px;">
-          AWS Cost Optimizer helps teams monitor and reduce their AWS spending with AI-powered insights.
+          AWS Manager helps teams monitor and reduce their AWS spending with AI-powered insights.
         </p>
         
         <div style="text-align: center; margin: 40px 0;">
@@ -74,7 +74,7 @@ export const sendInvitationEmail = internalAction({
         <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;" />
         
         <p style="color: #999; font-size: 12px; text-align: center;">
-          This email was sent by AWS Cost Optimizer. If you didn't expect this invitation,
+          This email was sent by AWS Manager. If you didn't expect this invitation,
           you can safely ignore it.
         </p>
         
@@ -91,7 +91,7 @@ You're invited to join ${organizationName}
 
 ${inviterName} has invited you to join ${organizationName} as a ${role}.
 
-AWS Cost Optimizer helps teams monitor and reduce their AWS spending with AI-powered insights.
+AWS Manager helps teams monitor and reduce their AWS spending with AI-powered insights.
 
 Accept the invitation by visiting:
 ${invitationLink}
@@ -100,14 +100,14 @@ If you don't want to join this organization, you can simply ignore this email.
 This invitation will expire in 7 days.
 
 ---
-This email was sent by AWS Cost Optimizer.
+This email was sent by AWS Manager.
     `;
 
     try {
       const emailId = await resend.sendEmail(ctx, {
         from: DEFAULT_FROM_EMAIL,
         to: email,
-        subject: `You're invited to join ${organizationName} on AWS Cost Optimizer`,
+        subject: `You're invited to join ${organizationName} on AWS Manager`,
         html: htmlContent,
         text: textContent,
       });
@@ -151,7 +151,7 @@ export const sendWelcomeEmail = internalAction({
     const htmlContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="text-align: center; margin-bottom: 30px;">
-          <h1 style="color: #ff6b00; margin: 0;">AWS Cost Optimizer</h1>
+          <h1 style="color: #ff6b00; margin: 0;">AWS Manager</h1>
         </div>
         
         <h2 style="color: #1a1a1a; margin-bottom: 20px;">Welcome to ${organizationName}!</h2>
@@ -181,7 +181,7 @@ export const sendWelcomeEmail = internalAction({
         <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;" />
         
         <p style="color: #999; font-size: 12px; text-align: center;">
-          This email was sent by AWS Cost Optimizer.
+          This email was sent by AWS Manager.
         </p>
       </div>
     `;
@@ -190,7 +190,7 @@ export const sendWelcomeEmail = internalAction({
       const emailId = await resend.sendEmail(ctx, {
         from: DEFAULT_FROM_EMAIL,
         to: email,
-        subject: `Welcome to ${organizationName} on AWS Cost Optimizer`,
+        subject: `Welcome to ${organizationName} on AWS Manager`,
         html: htmlContent,
         text: `Welcome to ${organizationName}!\n\nHi ${userName},\n\nYou've successfully joined ${organizationName} as a ${role}.\n\nGo to your dashboard: ${dashboardLink}`,
       });
@@ -235,7 +235,7 @@ export const triggerInvitationEmail = action({
     const htmlContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="text-align: center; margin-bottom: 30px;">
-          <h1 style="color: #ff6b00; margin: 0;">AWS Cost Optimizer</h1>
+          <h1 style="color: #ff6b00; margin: 0;">AWS Manager</h1>
         </div>
         
         <h2 style="color: #1a1a1a; margin-bottom: 20px;">You're invited to join ${organizationName}</h2>
@@ -257,7 +257,7 @@ export const triggerInvitationEmail = action({
         <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;" />
         
         <p style="color: #999; font-size: 12px; text-align: center;">
-          This email was sent by AWS Cost Optimizer.
+          This email was sent by AWS Manager.
         </p>
       </div>
     `;
@@ -266,7 +266,7 @@ export const triggerInvitationEmail = action({
       await resend.sendEmail(ctx, {
         from: DEFAULT_FROM_EMAIL,
         to: email,
-        subject: `You're invited to join ${organizationName} on AWS Cost Optimizer`,
+        subject: `You're invited to join ${organizationName} on AWS Manager`,
         html: htmlContent,
         text: `You're invited to join ${organizationName}. Accept the invitation: ${invitationLink}`,
       });

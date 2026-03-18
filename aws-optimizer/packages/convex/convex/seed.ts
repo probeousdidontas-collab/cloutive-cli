@@ -1,5 +1,5 @@
 /**
- * Seed Data for AWS Cost Optimizer
+ * Seed Data for AWS Manager
  *
  * Provides realistic demo data for development and demonstrations.
  * Includes organizations, users, AWS accounts, cost data, recommendations,
