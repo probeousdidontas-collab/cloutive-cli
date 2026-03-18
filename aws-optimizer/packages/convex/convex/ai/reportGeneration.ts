@@ -14,6 +14,7 @@
 import { v } from "convex/values";
 import { internalAction, internalMutation, internalQuery } from "../_generated/server";
 import { internal } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
 import { awsCostAgent } from "./awsCostAgent";
 
 // ============================================================================
@@ -315,8 +316,9 @@ interface AwsAccount {
 
 /**
  * Build the prompt for the AI agent based on report type.
+ * Kept as fallback when no DB prompt is found.
  */
-function buildReportPrompt(
+function legacyBuildReportPrompt(
   reportType: ReportType,
   reportTitle: string,
   organizationId: string,
@@ -532,12 +534,23 @@ export const generateReport = internalAction({
         progressPercent: 25,
       });
 
-      const prompt = buildReportPrompt(
-        reportType,
-        reportTitle,
-        organizationId,
-        accounts as AwsAccount[]
-      );
+      // Try to resolve prompt from DB, fall back to hardcoded
+      const dbPrompt = await ctx.runQuery(internal.reportPrompts.resolvePrompt, {
+        type: reportType,
+        organizationId: organizationId as Id<"organizations">,
+      });
+
+      let prompt: string;
+      if (dbPrompt) {
+        const sectionTexts = dbPrompt.sections.map((s: { value: string }) => s.value).join("\n\n");
+        const suffix = dbPrompt.freeformSuffix ? `\n\n${dbPrompt.freeformSuffix}` : "";
+        const accountList = (accounts as AwsAccount[])
+          .map((a) => `- ${a.name} (${a.accountNumber})${a.region ? ` - Region: ${a.region}` : ""}`)
+          .join("\n");
+        prompt = `You are generating a report titled: "${reportTitle}"\nOrganization ID: ${organizationId}\n\nAWS Accounts to analyze:\n${accountList}\n\n${sectionTexts}${suffix}`;
+      } else {
+        prompt = legacyBuildReportPrompt(reportType, reportTitle, organizationId, accounts as AwsAccount[]);
+      }
 
       // Step 4: Running AI agent analysis
       console.log(`[ReportGeneration] Step 4: Starting AI agent analysis`);
