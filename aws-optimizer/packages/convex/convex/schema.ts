@@ -807,4 +807,54 @@ export default defineSchema({
     .index("by_cronSchedule", ["cronScheduleId"])
     .index("by_startedAt", ["startedAt"])
     .index("by_status", ["status"]),
+
+  // ============================================================================
+  // AI PROMPT MANAGEMENT
+  // ============================================================================
+  // Configurable prompts for report generation AI agents.
+  // System defaults are seeded on deploy; organizations can override.
+  reportPrompts: defineTable({
+    type: v.string(),
+    label: v.string(),
+    isSystem: v.boolean(),
+    organizationId: v.optional(v.id("organizations")),
+    sections: v.array(
+      v.object({
+        key: v.string(),
+        label: v.string(),
+        value: v.string(),
+        fieldType: v.union(v.literal("textarea"), v.literal("text"), v.literal("select")),
+        options: v.optional(v.array(v.string())),
+      })
+    ),
+    freeformSuffix: v.string(),
+    isActive: v.boolean(),
+    createdBy: v.optional(v.id("users")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_type_and_system", ["type", "isSystem"])
+    .index("by_type_and_org", ["type", "organizationId"])
+    .index("by_org", ["organizationId"]),
+
+  // Version history for prompt changes. Each save creates a new version.
+  reportPromptVersions: defineTable({
+    promptId: v.id("reportPrompts"),
+    version: v.number(),
+    sections: v.array(
+      v.object({
+        key: v.string(),
+        label: v.string(),
+        value: v.string(),
+        fieldType: v.union(v.literal("textarea"), v.literal("text"), v.literal("select")),
+        options: v.optional(v.array(v.string())),
+      })
+    ),
+    freeformSuffix: v.string(),
+    changedBy: v.optional(v.id("users")),
+    changeMessage: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_prompt", ["promptId"])
+    .index("by_prompt_and_version", ["promptId", "version"]),
 });
