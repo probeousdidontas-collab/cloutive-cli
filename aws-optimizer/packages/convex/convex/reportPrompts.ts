@@ -115,6 +115,21 @@ export const list = query({
   handler: async (ctx, args) => {
     const organizationId = args.organizationId ?? (await getUserOrgId(ctx));
 
+    // Determine user permissions
+    const admin = await isPlatformAdmin(ctx);
+    let isOrgAdmin = false;
+    if (organizationId) {
+      const user = await safeGetAuthUser(ctx);
+      if (user) {
+        const userId = user._id as unknown as Id<"users">;
+        const membership = await ctx.db
+          .query("orgMembers")
+          .withIndex("by_user", (q) => q.eq("userId", userId))
+          .first();
+        isOrgAdmin = membership?.role === "owner" || membership?.role === "admin";
+      }
+    }
+
     // Collect all prompts and split into system defaults and org overrides
     const allPrompts = await ctx.db.query("reportPrompts").collect();
     const systemDefaults = allPrompts.filter((p) => p.isSystem);
@@ -126,7 +141,13 @@ export const list = query({
         )
       : [];
 
-    return { systemDefaults, orgOverrides, hasOrg: !!organizationId };
+    return {
+      systemDefaults,
+      orgOverrides,
+      hasOrg: !!organizationId,
+      isPlatformAdmin: admin,
+      isOrgAdmin,
+    };
   },
 });
 

@@ -37,9 +37,6 @@ export const AIPromptsPage = observer(function AIPromptsPage() {
   const createPrompt = useMutation(api.reportPrompts.create);
   const removePrompt = useMutation(api.reportPrompts.remove);
 
-  // TODO: determine from user context — for now platform admin is false
-  const isAdmin = false;
-
   if (!promptsData) {
     return (
       <Center h="60vh">
@@ -48,14 +45,17 @@ export const AIPromptsPage = observer(function AIPromptsPage() {
     );
   }
 
+  const isAdmin = promptsData.isPlatformAdmin;
+  const canEditOrgOverrides = promptsData.isOrgAdmin || promptsData.isPlatformAdmin;
+
   const allPrompts = [...promptsData.systemDefaults, ...promptsData.orgOverrides];
   const selectedPrompt = selectedId ? allPrompts.find((p) => p._id === selectedId) : null;
 
   // Determine edit permissions
   const canEdit = selectedPrompt
     ? selectedPrompt.isSystem
-      ? isAdmin
-      : true // org override — org members can edit
+      ? isAdmin // only platform admins edit system defaults
+      : canEditOrgOverrides // org owner/admin can edit overrides
     : false;
 
   // Check if selected is a system default that has no org override yet
