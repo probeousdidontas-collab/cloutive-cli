@@ -151,3 +151,104 @@ describe("reportPrompts", () => {
     });
   });
 });
+
+describe("reportPromptVersions", () => {
+  it("lists versions newest first", async () => {
+    const t = createTestConvex();
+    const now = Date.now();
+
+    const promptId = await t.run(async (ctx: TestCtx) => {
+      return await ctx.db.insert("reportPrompts", {
+        type: "cost_analysis",
+        label: "Cost Analysis",
+        isSystem: true,
+        sections: [
+          { key: "intro", label: "Introduction", value: "Default intro", fieldType: "textarea" as const },
+        ],
+        freeformSuffix: "",
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }) as Id<"reportPrompts">;
+
+    await t.run(async (ctx: TestCtx) => {
+      await ctx.db.insert("reportPromptVersions", {
+        promptId,
+        version: 1,
+        sections: [
+          { key: "intro", label: "Introduction", value: "Version 1 intro", fieldType: "textarea" as const },
+        ],
+        freeformSuffix: "",
+        createdAt: now - 1000,
+      });
+      await ctx.db.insert("reportPromptVersions", {
+        promptId,
+        version: 2,
+        sections: [
+          { key: "intro", label: "Introduction", value: "Version 2 intro", fieldType: "textarea" as const },
+        ],
+        freeformSuffix: "suffix",
+        createdAt: now,
+      });
+    });
+
+    const versions = await t.run(async (ctx: TestCtx) => {
+      return await ctx.db
+        .query("reportPromptVersions")
+        .withIndex("by_prompt", (q: any) => q.eq("promptId", promptId))
+        .order("desc")
+        .take(20);
+    });
+
+    expect(versions).toHaveLength(2);
+    // Newest (highest _creationTime) first
+    expect(versions[0].version).toBe(2);
+    expect(versions[1].version).toBe(1);
+  });
+
+  it("fetches specific version by prompt + version number", async () => {
+    const t = createTestConvex();
+    const now = Date.now();
+
+    const promptId = await t.run(async (ctx: TestCtx) => {
+      return await ctx.db.insert("reportPrompts", {
+        type: "security",
+        label: "Security",
+        isSystem: true,
+        sections: [
+          { key: "body", label: "Body", value: "Default body", fieldType: "textarea" as const },
+        ],
+        freeformSuffix: "",
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }) as Id<"reportPrompts">;
+
+    await t.run(async (ctx: TestCtx) => {
+      await ctx.db.insert("reportPromptVersions", {
+        promptId,
+        version: 1,
+        sections: [
+          { key: "body", label: "Body", value: "V1 body", fieldType: "textarea" as const },
+        ],
+        freeformSuffix: "",
+        createdAt: now,
+      });
+    });
+
+    const result = await t.run(async (ctx: TestCtx) => {
+      return await ctx.db
+        .query("reportPromptVersions")
+        .withIndex("by_prompt_and_version", (q: any) =>
+          q.eq("promptId", promptId).eq("version", 1)
+        )
+        .first();
+    });
+
+    expect(result).not.toBeNull();
+    expect(result!.version).toBe(1);
+    expect(result!.sections[0].value).toBe("V1 body");
+  });
+});
