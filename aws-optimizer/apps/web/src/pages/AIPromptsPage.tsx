@@ -12,7 +12,6 @@ import {
   Modal,
   Stack,
   TextInput,
-  Textarea,
   Button,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
@@ -24,7 +23,7 @@ import { PromptEditor } from "../components/prompts/PromptEditor";
 import { VersionHistoryDrawer } from "../components/prompts/VersionHistoryDrawer";
 
 export const AIPromptsPage = observer(function AIPromptsPage() {
-  const promptsData = useQuery(api.reportPrompts.list);
+  const promptsData = useQuery(api.reportPrompts.list, {});
   const [selectedId, setSelectedId] = useState<Id<"reportPrompts"> | null>(null);
   const [historyOpened, historyDrawer] = useDisclosure(false);
   const [newTypeModalOpened, newTypeModal] = useDisclosure(false);
