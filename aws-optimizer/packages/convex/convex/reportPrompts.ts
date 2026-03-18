@@ -126,7 +126,7 @@ export const list = query({
         )
       : [];
 
-    return { systemDefaults, orgOverrides };
+    return { systemDefaults, orgOverrides, hasOrg: !!organizationId };
   },
 });
 

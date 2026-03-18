@@ -154,8 +154,8 @@ export const AIPromptsPage = observer(function AIPromptsPage() {
                 onViewHistory={historyDrawer.open}
               />
 
-              {/* Show "Customize for My Organization" button for system defaults without override */}
-              {selectedPrompt.isSystem && !hasOrgOverride && !isAdmin && (
+              {/* Show "Customize for My Organization" button for system defaults without override (only if user has an org) */}
+              {selectedPrompt.isSystem && !hasOrgOverride && promptsData.hasOrg && (
                 <Button
                   variant="light"
                   onClick={overrideModal.open}
