@@ -1,0 +1,85 @@
+AWS Optimizer - Production Environment
+======================================
+Last updated: 2026-04-15
+
+## Cloudflare
+
+Account email:  probeousdidontas@gmail.com
+Account ID:     2a26d1b3a67caf28bbc40438ebf370d7
+Subdomain:      probeousdidontas.workers.dev
+
+### Workers
+
+Staging:    aws-optimizer-web-staging
+            https://aws-optimizer-web-staging.probeousdidontas.workers.dev
+
+Production: aws-optimizer-web-prod  (not yet deployed)
+            https://aws-optimizer-web-prod.probeousdidontas.workers.dev
+
+Sandbox:    aws-optimizer-sandbox-staging  (not yet deployed on new account)
+            https://aws-optimizer-sandbox-staging.probeousdidontas.workers.dev
+
+### Wrangler Auth
+
+OAuth token stored at: ~/Library/Preferences/.wrangler/config/default.toml
+Login: npx wrangler login
+
+## Convex
+
+Team:       probeousdidontas
+Project:    cloutive
+Deployment: dev:quirky-sparrow-76
+URL:        https://quirky-sparrow-76.convex.cloud
+Site URL:   https://quirky-sparrow-76.convex.site
+
+### Convex Environment Variables
+
+BETTER_AUTH_SECRET   = (set, required for auth - must match across deployments)
+OPENROUTER_API_KEY   = (set, for AI/OpenRouter features)
+SANDBOX_WORKER_URL   = https://aws-optimizer-sandbox-staging.probeousdidontas.workers.dev
+SITE_URL             = https://aws-optimizer-web-staging.probeousdidontas.workers.dev
+TEST_MODE            = true
+
+### Convex Auth
+
+Token stored at: ~/.convex/config.json
+
+## Local Config Files (not in git)
+
+aws-optimizer/packages/convex/.env.local   -> CONVEX_DEPLOYMENT + CONVEX_URL
+aws-optimizer/apps/web/.env.local          -> VITE_CONVEX_URL
+
+## Shared Dev Box
+
+Host:       ozant@100.119.161.97
+Workspace:  /Users/ozant/oc-workspace-cloutiveassistantbot
+Managed by: openclaw agent
+Status:     Wrangler + Convex auth configured, ready to deploy
+
+## Deploy Commands
+
+# Staging frontend
+cd aws-optimizer/apps/web && ./deploy.sh staging
+
+# Production frontend
+cd aws-optimizer/apps/web && ./deploy.sh production
+
+# Convex dev
+cd aws-optimizer/packages/convex && npx convex dev
+
+# Convex production
+cd aws-optimizer/packages/convex && npx convex deploy
+
+## Migration Notes (2026-04-15)
+
+Migrated from:
+  - Cloudflare: ozan.turksever@gmail.com (account 61bc3c2d463b0c8a560015223751473c)
+  - Convex: team ozan-turksever, deployment zealous-chipmunk-626
+
+Migrated to:
+  - Cloudflare: probeousdidontas@gmail.com (account 2a26d1b3a67caf28bbc40438ebf370d7)
+  - Convex: team probeousdidontas, deployment quirky-sparrow-76
+
+Data restored from snapshot: snapshot_zealous-chipmunk-626_1776234222144923115.zip
+Env vars manually copied (not part of snapshot export).
+Wrangler cache (node_modules/.cache/wrangler/wrangler-account.json) had to be cleared on both machines.
