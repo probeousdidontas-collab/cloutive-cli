@@ -25,14 +25,14 @@
     }
   },
   "vars": {
-    "VITE_CONVEX_URL": "https://zealous-chipmunk-626.convex.cloud"
+    "VITE_CONVEX_URL": "https://quirky-sparrow-76.convex.cloud"
   },
   // Production environment configuration
   "env": {
     "production": {
       "name": "aws-optimizer-web-prod",
       "vars": {
-        "VITE_CONVEX_URL": "https://zealous-chipmunk-626.convex.cloud"
+        "VITE_CONVEX_URL": "https://quirky-sparrow-76.convex.cloud"
       }
       // Custom domain can be configured here:
       // "routes": [
@@ -45,7 +45,7 @@
     "staging": {
       "name": "aws-optimizer-web-staging",
       "vars": {
-        "VITE_CONVEX_URL": "https://zealous-chipmunk-626.convex.cloud"
+        "VITE_CONVEX_URL": "https://quirky-sparrow-76.convex.cloud"
       }
     }
   }
