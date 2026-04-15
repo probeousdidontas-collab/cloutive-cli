@@ -171,6 +171,9 @@ function HeroSection() {
           <Badge size="lg" variant="white" color="orange">
             AI-Powered AWS Cost Optimization
           </Badge>
+          <Badge size="sm" variant="filled" color="green">
+            New: v2.0 Released
+          </Badge>
           <Title
             order={1}
             c="white"

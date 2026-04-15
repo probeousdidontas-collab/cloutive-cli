@@ -27,6 +27,7 @@ Priority: P0 (blocking), P1 (important), P2 (nice to have)
 
 ## Nice to Have / P2
 
+- [ ] AWS Credential Box — build a small "box" (separate AWS account we control) that customers connect via CFN template (cross-account IAM role trust). One-click setup to grant Cloutive access instead of manual IAM role/credentials. — @anyone — P2 — 2026-04-15
 - [ ] Configure custom domain (app.awsoptimizer.com) in wrangler.jsonc production env — @anyone — P2 — 2026-04-15
 - [ ] Update worker.test.ts hardcoded Convex URLs from zealous-chipmunk-626 to quirky-sparrow-76 — @anyone — P2 — 2026-04-15
 
