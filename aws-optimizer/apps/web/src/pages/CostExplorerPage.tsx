@@ -29,6 +29,7 @@ import {
 } from "@tabler/icons-react";
 import { useQuery } from "convex/react";
 import { api } from "@aws-optimizer/convex/convex/_generated/api";
+import { useOrganization } from "../hooks/useOrganization";
 
 interface CostRecord {
   _id: string;
@@ -159,9 +160,14 @@ export function CostExplorerPage() {
   const [sortField, setSortField] = useState<SortField>("date");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
-  // Fetch data - these APIs work without arguments, they get org from auth context
+  const { convexOrgId } = useOrganization();
+
+  // Fetch data
   const costData = useQuery(api.costs.getCostData) as CostRecord[] | undefined;
-  const accountsData = useQuery(api.awsAccounts.listByOrganization);
+  const accountsData = useQuery(
+    api.awsAccounts.listByOrganization,
+    convexOrgId ? { organizationId: convexOrgId } : "skip"
+  );
   const accounts = accountsData as AwsAccount[] | undefined;
 
   // Extract unique values for filter options

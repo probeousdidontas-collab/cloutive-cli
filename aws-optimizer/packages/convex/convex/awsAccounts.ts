@@ -190,29 +190,13 @@ function generateCloudFormationTemplateContent(
  */
 export const listByOrganization = query({
   args: {
-    organizationId: v.optional(v.id("organizations")),
+    organizationId: v.id("organizations"),
   },
   handler: async (ctx, args) => {
-    // If organizationId is provided, use it directly
-    if (args.organizationId) {
-      const awsAccounts = await ctx.db
-        .query("awsAccounts")
-        .withIndex("by_organization", (q) => q.eq("organizationId", args.organizationId!))
-        .collect();
-      return awsAccounts;
-    }
-
-    // Fallback: try to get from orgMembers (legacy support)
-    const membership = await ctx.db.query("orgMembers").first();
-    if (!membership) {
-      return [];
-    }
-
     const awsAccounts = await ctx.db
       .query("awsAccounts")
-      .withIndex("by_organization", (q) => q.eq("organizationId", membership.organizationId))
+      .withIndex("by_organization", (q) => q.eq("organizationId", args.organizationId))
       .collect();
-
     return awsAccounts;
   },
 });
