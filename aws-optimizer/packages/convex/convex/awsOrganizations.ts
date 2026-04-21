@@ -531,6 +531,9 @@ export const discoverMemberAccounts = action({
         status: "failed",
         statusMessage: "Management account credentials not found",
       });
+      await ctx.runMutation(internal.awsOrganizations.cleanupDiscoveryManagementAccount, {
+        discoveryId,
+      });
       return { success: false, accountCount: 0, errorMessage: "Credentials not found" };
     }
 
@@ -547,6 +550,9 @@ export const discoverMemberAccounts = action({
         discoveryId,
         status: "failed",
         statusMessage: result.errorMessage || "Failed to list accounts",
+      });
+      await ctx.runMutation(internal.awsOrganizations.cleanupDiscoveryManagementAccount, {
+        discoveryId,
       });
       return { success: false, accountCount: 0, errorMessage: result.errorMessage };
     }
@@ -566,7 +572,79 @@ export const discoverMemberAccounts = action({
       totalAccountsFound: result.accounts.length,
     });
 
+    await ctx.runMutation(internal.awsOrganizations.cleanupDiscoveryManagementAccount, {
+      discoveryId,
+    });
+
     return { success: true, accountCount: result.accounts.length };
+  },
+});
+
+/**
+ * One-shot cleanup: delete any temporary mgmt-account rows left behind by
+ * pre-fix discovery runs (description: "Temporary account for Organizations
+ * discovery"). Callable from the CLI via `npx convex run`.
+ */
+export const cleanupStaleTempManagementAccounts = mutation({
+  args: {
+    organizationId: v.id("organizations"),
+  },
+  returns: v.object({ deletedAccounts: v.number(), deletedCredentials: v.number() }),
+  handler: async (ctx, args) => {
+    const accounts = await ctx.db
+      .query("awsAccounts")
+      .withIndex("by_organization", (q) => q.eq("organizationId", args.organizationId))
+      .filter((q) =>
+        q.eq(q.field("description"), "Temporary account for Organizations discovery")
+      )
+      .collect();
+
+    let deletedCredentials = 0;
+    for (const account of accounts) {
+      const creds = await ctx.db
+        .query("awsCredentials")
+        .withIndex("by_awsAccount", (q) => q.eq("awsAccountId", account._id))
+        .collect();
+      for (const c of creds) {
+        await ctx.db.delete(c._id);
+        deletedCredentials++;
+      }
+      await ctx.db.delete(account._id);
+    }
+
+    return { deletedAccounts: accounts.length, deletedCredentials };
+  },
+});
+
+/**
+ * Delete the temporary management-account awsAccounts row + credentials
+ * created by startDiscovery. connectSelectedAccounts creates fresh accounts
+ * per member via IAM role ARNs, so the mgmt-creds carrier is dead weight
+ * once discovery has run (success or fail).
+ */
+export const cleanupDiscoveryManagementAccount = internalMutation({
+  args: {
+    discoveryId: v.id("awsOrgDiscoveries"),
+  },
+  handler: async (ctx, args) => {
+    const discovery = await ctx.db.get(args.discoveryId);
+    if (!discovery || !discovery.managementAwsAccountId) return;
+
+    const mgmtAccountId = discovery.managementAwsAccountId;
+
+    const creds = await ctx.db
+      .query("awsCredentials")
+      .withIndex("by_awsAccount", (q) => q.eq("awsAccountId", mgmtAccountId))
+      .collect();
+    for (const c of creds) {
+      await ctx.db.delete(c._id);
+    }
+
+    await ctx.db.delete(mgmtAccountId);
+    await ctx.db.patch(args.discoveryId, {
+      managementAwsAccountId: undefined,
+      updatedAt: Date.now(),
+    });
   },
 });
 
