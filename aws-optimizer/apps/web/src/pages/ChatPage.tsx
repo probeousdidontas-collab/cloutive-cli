@@ -45,12 +45,28 @@ interface Thread {
   _creationTime?: number;
 }
 
-function getMessageText(message: Message["message"]): string {
-  if (typeof message === "string") {
-    return message;
+function getMessageText(msg: Message): string {
+  // @convex-dev/agent stores the rendered text at the top level.
+  if (typeof (msg as unknown as { text?: unknown }).text === "string") {
+    return (msg as unknown as { text: string }).text;
   }
-  if (message && typeof message === "object" && "text" in message) {
-    return message.text;
+  // Fallback: dig into the wrapped AI-SDK message — user messages have
+  // content as a string; assistant messages have content as an array of parts.
+  const inner = (msg as unknown as { message?: unknown }).message;
+  if (typeof inner === "string") return inner;
+  if (inner && typeof inner === "object") {
+    const obj = inner as { content?: unknown; text?: unknown };
+    if (typeof obj.text === "string") return obj.text;
+    if (typeof obj.content === "string") return obj.content;
+    if (Array.isArray(obj.content)) {
+      return obj.content
+        .filter((p): p is { type: "text"; text: string } =>
+          !!p && typeof p === "object" && (p as { type?: unknown }).type === "text" &&
+          typeof (p as { text?: unknown }).text === "string"
+        )
+        .map((p) => p.text)
+        .join("");
+    }
   }
   return "";
 }
@@ -274,14 +290,21 @@ export function ChatPage() {
               </Paper>
             )}
 
-            {messageList.map((msg) => (
-              <MessageBubble
-                key={msg._id}
-                role={msg.role}
-                content={getMessageText(msg.message)}
-                userName={session?.user?.name || "User"}
-              />
-            ))}
+            {messageList.map((msg) => {
+              const role =
+                msg.role ??
+                (typeof msg.message === "object" && msg.message !== null && "role" in msg.message
+                  ? (msg.message as { role: "user" | "assistant" }).role
+                  : "assistant");
+              return (
+                <MessageBubble
+                  key={msg._id}
+                  role={role}
+                  content={getMessageText(msg)}
+                  userName={session?.user?.name || "User"}
+                />
+              );
+            })}
 
             {isLoading && (
               <Group gap="sm" p="md">

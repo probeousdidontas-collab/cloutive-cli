@@ -12,18 +12,22 @@
  */
 
 import { Agent } from "@convex-dev/agent";
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
 import { components } from "../_generated/api";
 import { AWS_COMMAND_TOOLS } from "./tools/awsCommands";
 import { ANALYSIS_TOOLS } from "./tools/analysis";
 
-// Initialize OpenRouter with API key from environment
-const openrouter = createOpenRouter({
-  apiKey: process.env.OPENROUTER_API_KEY,
+// Amazon Bedrock provider. Creds come from Convex env
+// (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY) set via `npx convex env set`.
+// Region is locked to one that has Claude inference profiles enabled for
+// this account — verified at deploy time.
+const bedrock = createAmazonBedrock({
+  region: process.env.AWS_REGION || "eu-central-1",
+  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
 });
 
-// Model configuration
-const MODEL_ID = "anthropic/claude-sonnet-4";
+const MODEL_ID = "global.anthropic.claude-opus-4-6-v1";
 
 // Comprehensive system instructions for AWS cost optimization
 const SYSTEM_INSTRUCTIONS = `You are an expert AWS Cost Optimization Assistant. Your role is to help organizations understand, analyze, and reduce their AWS spending through intelligent analysis and actionable recommendations.
@@ -162,7 +166,7 @@ export const AWS_COST_AGENT_TOOLS = {
  */
 export const awsCostAgent = new Agent(components.agent, {
   name: AWS_COST_AGENT_CONFIG.name,
-  languageModel: openrouter(MODEL_ID),
+  languageModel: bedrock(MODEL_ID),
   maxSteps: AWS_COST_AGENT_CONFIG.maxSteps,
   instructions: AWS_COST_AGENT_CONFIG.instructions,
   tools: AWS_COST_AGENT_TOOLS,
