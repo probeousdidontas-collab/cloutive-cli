@@ -5,21 +5,23 @@
  * - Executive insights paragraph (organization-level)
  * - Per-account commentary (for accounts with significant cost changes)
  *
- * Uses OpenRouter with Claude Sonnet 4 for text generation.
+ * Uses Amazon Bedrock (Claude Opus 4.6) for text generation.
  */
 
 import { v } from "convex/values";
 import { internalAction } from "../_generated/server";
 import { internal } from "../_generated/api";
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
 import { generateText } from "ai";
 import type { CostAnalysisReportData } from "./costAnalysisTypes";
 
-const openrouter = createOpenRouter({
-  apiKey: process.env.OPENROUTER_API_KEY,
+const bedrock = createAmazonBedrock({
+  region: process.env.AWS_REGION || "eu-central-1",
+  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
 });
 
-const MODEL_ID = "anthropic/claude-sonnet-4";
+const MODEL_ID = "global.anthropic.claude-opus-4-6-v1";
 
 /**
  * Generate executive insights and per-account AI commentary.
@@ -48,7 +50,7 @@ export const generateInsights = internalAction({
 
     // Generate executive insights
     const executiveResult = await generateText({
-      model: openrouter(MODEL_ID),
+      model: bedrock(MODEL_ID),
       prompt: `${roleDefinition}. ${execInstructions}\n\n${summaryText}`,
       maxOutputTokens: 500,
     });
@@ -68,7 +70,7 @@ export const generateInsights = internalAction({
         const accountSummary = buildAccountSummaryForAI(account);
 
         const accountResult = await generateText({
-          model: openrouter(MODEL_ID),
+          model: bedrock(MODEL_ID),
           prompt: `${roleDefinition}. ${accountRules}\n\n${accountSummary}`,
           maxOutputTokens: 200,
         });

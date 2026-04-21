@@ -97,12 +97,12 @@ export const generateCostAnalysisReport = internalAction({
 
       let enrichedDataJson: string;
       try {
-        if (process.env.OPENROUTER_API_KEY) {
+        if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
           enrichedDataJson = await ctx.runAction(internal.ai.costAnalysisInsights.generateInsights, {
             reportDataJson: JSON.stringify(reportData),
           });
         } else {
-          console.log("[CostAnalysis] Skipping AI insights - OPENROUTER_API_KEY not configured");
+          console.log("[CostAnalysis] Skipping AI insights - Bedrock credentials not configured");
           enrichedDataJson = JSON.stringify(reportData);
         }
       } catch (error) {

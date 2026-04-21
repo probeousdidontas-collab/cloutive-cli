@@ -55,13 +55,17 @@ function classifyError(error: unknown): ClassifiedError {
     errorString.includes("unauthorized") ||
     errorString.includes("authentication") ||
     errorString.includes("invalid_api_key") ||
-    errorString.includes("openrouter")
+    errorString.includes("accessdenied") ||
+    errorString.includes("access denied") ||
+    errorString.includes("bedrock")
   ) {
     return {
       category: "configuration",
       message: "AI service not configured",
-      details: "The OPENROUTER_API_KEY environment variable is missing or invalid.",
-      suggestion: "Please set the OPENROUTER_API_KEY in your Convex dashboard environment variables. Get your API key from https://openrouter.ai/keys",
+      details:
+        "Amazon Bedrock credentials are missing, invalid, or lack InvokeModel permission.",
+      suggestion:
+        "Set AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_REGION in Convex env and enable the Claude model in the Bedrock console.",
     };
   }
 
@@ -478,10 +482,12 @@ export const generateReport = internalAction({
     console.log(`[ReportGeneration] Starting report generation for report ${reportId}, type: ${reportType}`);
 
     try {
-      // Pre-flight check: Verify OPENROUTER_API_KEY is configured
-      if (!process.env.OPENROUTER_API_KEY) {
-        console.error("[ReportGeneration] OPENROUTER_API_KEY is not configured");
-        const classified = classifyError(new Error("OPENROUTER_API_KEY environment variable is not set"));
+      // Pre-flight check: Verify Bedrock credentials are configured
+      if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
+        console.error("[ReportGeneration] Bedrock credentials not configured");
+        const classified = classifyError(
+          new Error("Bedrock credentials missing: AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY")
+        );
         await ctx.runMutation(internal.ai.reportGeneration.updateReportFailed, {
           reportId,
           errorMessage: formatErrorMessage(classified),

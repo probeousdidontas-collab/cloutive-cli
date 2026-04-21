@@ -158,7 +158,23 @@ export function ChatPage() {
 
   // Cast messages to Message[] type - the agent library returns messages with role field
   // Use unknown intermediate cast since the types don't overlap sufficiently
-  const messageList = (messages?.page || []) as unknown as Message[];
+  // Backend returns newest-first and may include failed/empty agent steps
+  // (e.g. auth hiccups). Sort chronologically by _creationTime, then hide
+  // empty/failed assistant bubbles so the UI shows only the real conversation.
+  const messageList = ((messages?.page || []) as unknown as Message[])
+    .slice()
+    .sort((a, b) => (a._creationTime ?? 0) - (b._creationTime ?? 0))
+    .filter((msg) => {
+      const role =
+        msg.role ??
+        (typeof msg.message === "object" && msg.message !== null && "role" in msg.message
+          ? (msg.message as { role: "user" | "assistant" }).role
+          : "assistant");
+      if (role === "user") return true;
+      const status = (msg as unknown as { status?: string }).status;
+      if (status === "failed") return false;
+      return getMessageText(msg).trim().length > 0;
+    });
   // Map threads to ensure consistent interface
   const threadList: Thread[] = (threads?.page || []).map((t: { id?: string; _id?: string; title?: string; createdAt?: number; _creationTime?: number; status?: string }) => ({
     id: t.id || t._id || "",

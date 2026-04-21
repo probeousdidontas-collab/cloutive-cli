@@ -320,9 +320,11 @@ export const executeCostCollection = internalAction({
   },
   handler: async (ctx, args) => {
     try {
-      // Pre-flight: verify OPENROUTER_API_KEY is set
-      if (!process.env.OPENROUTER_API_KEY) {
-        throw new Error("OPENROUTER_API_KEY environment variable is not set");
+      // Pre-flight: verify Bedrock credentials are set
+      if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
+        throw new Error(
+          "Bedrock credentials missing — set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY via `npx convex env set`"
+        );
       }
 
       // Update status to running
