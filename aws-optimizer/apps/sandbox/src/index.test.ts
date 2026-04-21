@@ -403,7 +403,7 @@ describe("Sandbox Worker", () => {
 
       expect(response.status).toBe(404);
       expect(body.error).toBe("Not found");
-      expect(body.availableEndpoints).toHaveLength(2);
+      expect(body.availableEndpoints).toHaveLength(3);
     });
 
     it("lists available endpoints in 404 response", async () => {
@@ -416,6 +416,7 @@ describe("Sandbox Worker", () => {
       expect(body.availableEndpoints).toEqual([
         { method: "GET", path: "/health" },
         { method: "POST", path: "/execute" },
+        { method: "POST", path: "/claude" },
       ]);
     });
   });

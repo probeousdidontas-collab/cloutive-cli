@@ -5,7 +5,13 @@ export { Sandbox };
 
 interface Env {
   Sandbox: DurableObjectNamespace<Sandbox>;
+  AWS_ACCESS_KEY_ID?: string;
+  AWS_SECRET_ACCESS_KEY?: string;
 }
+
+const BEDROCK_REGION = "eu-central-1";
+const BEDROCK_MODEL = "global.anthropic.claude-opus-4-6-v1";
+const CLAUDE_TIMEOUT_MS = 5 * 60 * 1000;
 
 interface AwsCredentials {
   accessKeyId: string;
@@ -32,6 +38,20 @@ interface HealthResponse {
   awsCliVersion: string;
   sandboxReady: boolean;
   error?: string;
+}
+
+interface ClaudeRequest {
+  prompt: string;
+}
+
+interface ClaudeResponse {
+  success: boolean;
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+  executionTime: number;
+  model: string;
+  region: string;
 }
 
 /**
@@ -183,6 +203,101 @@ async function handleExecute(request: Request, env: Env): Promise<Response> {
 }
 
 /**
+ * Handles the /claude endpoint — runs Claude Code CLI against Amazon Bedrock.
+ * Bedrock creds come from wrangler secrets. Claude Code refuses
+ * --dangerously-skip-permissions as root, so setpriv drops to uid 1000.
+ * @cloudflare/sandbox@0.3.3 ignores the exec `env` option, so env vars are
+ * inlined as shell assignments in the command string.
+ */
+async function handleClaude(request: Request, env: Env): Promise<Response> {
+  if (request.method !== "POST") {
+    return new Response(JSON.stringify({ error: "Method not allowed" }), {
+      status: 405,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  if (!env.AWS_ACCESS_KEY_ID || !env.AWS_SECRET_ACCESS_KEY) {
+    return new Response(
+      JSON.stringify({
+        error:
+          "Bedrock credentials not configured. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY via `wrangler secret put`.",
+      }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  let body: ClaudeRequest;
+  try {
+    body = (await request.json()) as ClaudeRequest;
+  } catch {
+    return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  if (!body.prompt || typeof body.prompt !== "string") {
+    return new Response(JSON.stringify({ error: "Missing or invalid 'prompt' field" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const startTime = Date.now();
+  const response: ClaudeResponse = {
+    success: false,
+    stdout: "",
+    stderr: "",
+    exitCode: -1,
+    executionTime: 0,
+    model: BEDROCK_MODEL,
+    region: BEDROCK_REGION,
+  };
+
+  try {
+    const sandbox = getSandbox(env.Sandbox, "claude-bedrock");
+
+    const promptBytes = new TextEncoder().encode(body.prompt);
+    let binary = "";
+    for (const byte of promptBytes) binary += String.fromCharCode(byte);
+    const promptB64 = btoa(binary);
+
+    const shellSingleQuote = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`;
+    const envPrefix = [
+      `AWS_ACCESS_KEY_ID=${shellSingleQuote(env.AWS_ACCESS_KEY_ID)}`,
+      `AWS_SECRET_ACCESS_KEY=${shellSingleQuote(env.AWS_SECRET_ACCESS_KEY)}`,
+      `AWS_REGION=${BEDROCK_REGION}`,
+      `AWS_DEFAULT_REGION=${BEDROCK_REGION}`,
+      `CLAUDE_CODE_USE_BEDROCK=1`,
+      `ANTHROPIC_MODEL=${shellSingleQuote(BEDROCK_MODEL)}`,
+      `HOME=/home/sandbox`,
+      `PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin`,
+    ].join(" ");
+
+    const command = `P=$(echo ${promptB64} | base64 -d); ${envPrefix} setpriv --reuid=1000 --regid=1000 --init-groups -- claude -p "$P" --output-format json --dangerously-skip-permissions < /dev/null`;
+
+    const result = await sandbox.exec(command, {
+      timeout: CLAUDE_TIMEOUT_MS,
+    });
+
+    response.success = result.exitCode === 0;
+    response.stdout = result.stdout || "";
+    response.stderr = result.stderr || "";
+    response.exitCode = result.exitCode ?? -1;
+  } catch (error) {
+    response.stderr = error instanceof Error ? error.message : "Unknown error";
+  }
+
+  response.executionTime = Date.now() - startTime;
+
+  return new Response(JSON.stringify(response, null, 2), {
+    headers: { "Content-Type": "application/json" },
+    status: response.success ? 200 : 500,
+  });
+}
+
+/**
  * Main fetch handler
  */
 export default {
@@ -213,6 +328,10 @@ export default {
         response = await handleExecute(request, env);
         break;
 
+      case "/claude":
+        response = await handleClaude(request, env);
+        break;
+
       default:
         response = new Response(
           JSON.stringify({
@@ -220,6 +339,7 @@ export default {
             availableEndpoints: [
               { method: "GET", path: "/health" },
               { method: "POST", path: "/execute" },
+              { method: "POST", path: "/claude" },
             ],
           }),
           {

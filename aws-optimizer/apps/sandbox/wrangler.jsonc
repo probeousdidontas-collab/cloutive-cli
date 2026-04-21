@@ -55,10 +55,11 @@
           "max_instances": 5
         }
       ],
-      // Rate limiting and other settings can be configured via secrets
       // Set secrets using: wrangler secret put <SECRET_NAME> --env production
-      // Required secrets:
-      // - None required (credentials passed per-request)
+      // Required secrets for /claude (Bedrock):
+      // - AWS_ACCESS_KEY_ID: IAM user with bedrock:InvokeModel on the locked model
+      // - AWS_SECRET_ACCESS_KEY
+      // /execute (raw aws CLI) does not use these — it takes per-request creds.
       // Optional secrets for future features:
       // - RATE_LIMIT_API_KEY: API key for rate limiting service
       // - ALLOWED_ORIGINS: Comma-separated list of allowed CORS origins
@@ -82,7 +83,7 @@
           "class_name": "Sandbox",
           "image": "./Dockerfile",
           "instance_type": "basic",
-          "max_instances": 2
+          "max_instances": 15
         }
       ],
       "vars": {
