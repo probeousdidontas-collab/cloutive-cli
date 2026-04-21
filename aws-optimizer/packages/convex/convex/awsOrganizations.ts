@@ -83,18 +83,16 @@ type DiscoveredAccountStatus = "discovered" | "selected" | "connecting" | "conne
  * Get the current discovery session for an organization.
  */
 export const getCurrentDiscovery = query({
-  args: {},
-  handler: async (ctx) => {
-    // Get the first organization membership for the current context
-    const membership = await ctx.db.query("orgMembers").first();
-    if (!membership) {
-      return null;
-    }
-
-    // Get the most recent active discovery session
+  args: {
+    organizationId: v.id("organizations"),
+  },
+  handler: async (ctx, args) => {
+    // Get the most recent discovery session for this organization.
+    // Auth/authorization is enforced at the API layer (Better Auth);
+    // the caller must pass the organizationId they're currently viewing.
     const discovery = await ctx.db
       .query("awsOrgDiscoveries")
-      .withIndex("by_organization", (q) => q.eq("organizationId", membership.organizationId))
+      .withIndex("by_organization", (q) => q.eq("organizationId", args.organizationId))
       .order("desc")
       .first();
 
@@ -135,16 +133,13 @@ export const getDiscovery = query({
  * List all discovery sessions for an organization.
  */
 export const listDiscoveries = query({
-  args: {},
-  handler: async (ctx) => {
-    const membership = await ctx.db.query("orgMembers").first();
-    if (!membership) {
-      return [];
-    }
-
+  args: {
+    organizationId: v.id("organizations"),
+  },
+  handler: async (ctx, args) => {
     const discoveries = await ctx.db
       .query("awsOrgDiscoveries")
-      .withIndex("by_organization", (q) => q.eq("organizationId", membership.organizationId))
+      .withIndex("by_organization", (q) => q.eq("organizationId", args.organizationId))
       .order("desc")
       .collect();
 

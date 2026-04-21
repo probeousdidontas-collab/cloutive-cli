@@ -289,7 +289,10 @@ export const AccountsPage = observer(function AccountsPage() {
   const discoverMemberAccounts = useAction(api.awsOrganizations.discoverMemberAccounts);
   const updateAccountSelections = useMutation(api.awsOrganizations.updateAccountSelections);
   const connectSelectedAccounts = useAction(api.awsOrganizations.connectSelectedAccounts);
-  const currentDiscovery = useQuery(api.awsOrganizations.getCurrentDiscovery) as DiscoverySession | null | undefined;
+  const currentDiscovery = useQuery(
+    api.awsOrganizations.getCurrentDiscovery,
+    organizationId ? { organizationId: organizationId as Id<"organizations"> } : "skip"
+  ) as DiscoverySession | null | undefined;
   const discoveredAccounts = useQuery(
     api.awsOrganizations.listDiscoveredAccounts,
     currentDiscovery?._id ? { discoveryId: currentDiscovery._id as Id<"awsOrgDiscoveries"> } : "skip"
