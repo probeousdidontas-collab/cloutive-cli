@@ -3,6 +3,7 @@
 ## Task Tracking
 
 Read `docs/TEAMTODO.md` at the start of every session. This is the shared task list across team members and AI assistants. Update it as you complete or discover work.
+Always update README.md after big changes
 
 ## Git Workflow
 
