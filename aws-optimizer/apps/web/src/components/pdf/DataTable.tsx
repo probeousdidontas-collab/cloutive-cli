@@ -31,24 +31,27 @@ const styles = StyleSheet.create({
   },
 });
 
-/* eslint-disable @typescript-eslint/no-explicit-any --
-   Polymorphic PDF cell formatter API — callers declare their own value/row types in the lambda. */
-interface Column {
-  key: string;
-  label: string;
-  width?: number;
-  align?: "left" | "right" | "center";
-  render?: (value: any, row: any) => string;
-  color?: (value: any, row: any) => string;
+type StringKey<TRow> = Extract<keyof TRow, string>;
+
+// Discriminated union: each column variant binds `key` to the matching `value` type.
+// This lets callers write `render: (v: number) => …` for a numeric column without casts.
+export type Column<TRow> = {
+  [K in StringKey<TRow>]: {
+    key: K;
+    label: string;
+    width?: number;
+    align?: "left" | "right" | "center";
+    render?: (value: TRow[K], row: TRow) => string;
+    color?: (value: TRow[K], row: TRow) => string;
+  };
+}[StringKey<TRow>];
+
+interface DataTableProps<TRow> {
+  columns: Column<TRow>[];
+  data: TRow[];
 }
 
-interface DataTableProps {
-  columns: Column[];
-  data: Record<string, any>[];
-}
-/* eslint-enable @typescript-eslint/no-explicit-any */
-
-export function DataTable({ columns, data }: DataTableProps) {
+export function DataTable<TRow>({ columns, data }: DataTableProps<TRow>) {
   return (
     <View style={styles.table}>
       <View style={styles.headerRow}>
@@ -70,19 +73,30 @@ export function DataTable({ columns, data }: DataTableProps) {
           style={[styles.row, rowIndex % 2 === 1 ? { backgroundColor: "#fafbfc" } : {}]}
         >
           {columns.map((col) => {
-            const rawValue = row[col.key];
-            const displayValue = col.render ? col.render(rawValue, row) : String(rawValue ?? "");
-            const textColor = col.color ? col.color(rawValue, row) : "#374151";
+            // The mapped union correlates `col.key` to the value type per variant,
+            // but TS can't carry that correlation through `row[col.key]` here —
+            // erase to a single concrete shape for the call.
+            type AnyKeyCol = {
+              key: StringKey<TRow>;
+              width?: number;
+              align?: "left" | "right" | "center";
+              render?: (value: TRow[StringKey<TRow>], row: TRow) => string;
+              color?: (value: TRow[StringKey<TRow>], row: TRow) => string;
+            };
+            const c = col as AnyKeyCol;
+            const rawValue = row[c.key];
+            const displayValue = c.render ? c.render(rawValue, row) : String(rawValue ?? "");
+            const textColor = c.color ? c.color(rawValue, row) : "#374151";
             return (
               <Text
-                key={col.key}
+                key={c.key}
                 style={[
                   styles.cell,
                   {
-                    flex: col.width ?? 1,
-                    textAlign: col.align ?? "left",
+                    flex: c.width ?? 1,
+                    textAlign: c.align ?? "left",
                     color: textColor,
-                    fontWeight: col.key === "name" || col.key === "account" ? "bold" : "normal",
+                    fontWeight: c.key === "name" || c.key === "account" ? "bold" : "normal",
                   },
                 ]}
               >

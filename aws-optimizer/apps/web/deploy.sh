@@ -1,26 +1,38 @@
 #!/bin/bash
 #
-# Deployment script for AWS Optimizer Web Frontend
+# Deployment script for AWS Optimizer — orchestrates the whole Convex project.
 # Usage: ./deploy.sh [environment]
 #
 # Environments: production, staging (default: staging)
 #
-# Prerequisites:
-# - wrangler CLI installed and authenticated
-# - npm/yarn for building the frontend
+# What this does, in order:
+#   1. Resolve wrangler + check Cloudflare auth
+#   2. Lint web (errors block; warnings don't)
+#   3. Convex sync check — frontend references match backend functions
+#   4. Push Convex backend
+#       - staging: pushes to dev:quirky-sparrow-76 via `convex dev --once`
+#                  (no separate staging deployment exists yet — see TEAMTODO P1)
+#       - production: `convex deploy` (requires CONVEX_DEPLOY_KEY for prod)
+#   5. Build frontend (Vite → dist/)
+#   6. Deploy frontend (wrangler deploy --env $ENV)
+#
+# Backend before frontend on purpose: the deployed bundle must hit a backend
+# that has the function references it expects. Frontend-first leaves a window
+# where prod traffic 404s on new functions.
 
 set -e
 
 ENV="${1:-staging}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WEB_DIR="$SCRIPT_DIR"
+CONVEX_DIR="$SCRIPT_DIR/../../packages/convex"
+WORKSPACE_ROOT="$SCRIPT_DIR/../.."
 
-echo "=== AWS Optimizer Web Deployment ==="
+echo "=== AWS Optimizer Deployment ==="
 echo "Environment: $ENV"
-echo "Working directory: $SCRIPT_DIR"
+echo "Web:    $WEB_DIR"
+echo "Convex: $CONVEX_DIR"
 echo ""
-
-# Change to script directory
-cd "$SCRIPT_DIR"
 
 # Validate environment
 if [[ "$ENV" != "production" && "$ENV" != "staging" ]]; then
@@ -35,8 +47,11 @@ else
     WRANGLER="npx wrangler"
 fi
 
-# Check prerequisites
-echo "=== Checking prerequisites ==="
+# ───────────────────────────────────────────────────────────────────────────
+# 1. Prerequisites
+# ───────────────────────────────────────────────────────────────────────────
+echo "=== [1/6] Checking prerequisites ==="
+cd "$WEB_DIR"
 
 if ! $WRANGLER --version &> /dev/null; then
     echo "Error: wrangler CLI is not available (tried '$WRANGLER')"
@@ -45,7 +60,6 @@ if ! $WRANGLER --version &> /dev/null; then
 fi
 echo "✓ wrangler CLI found ($WRANGLER)"
 
-# Check wrangler authentication
 if ! $WRANGLER whoami &> /dev/null; then
     echo "Error: wrangler is not authenticated"
     echo "Run: $WRANGLER login"
@@ -54,56 +68,78 @@ fi
 echo "✓ wrangler authenticated"
 echo ""
 
-# Run typecheck (skip for now due to upstream convex package errors)
-echo "=== Skipping typecheck ==="
-echo "Note: Typecheck skipped due to upstream errors in packages/convex"
+# ───────────────────────────────────────────────────────────────────────────
+# 2. Lint web (errors block the deploy)
+# ───────────────────────────────────────────────────────────────────────────
+echo "=== [2/6] Linting web ==="
+npm run lint
+echo "✓ Lint clean"
 echo ""
 
-# Run linting (skip for now due to pre-existing React Compiler bailouts)
-echo "=== Skipping linting ==="
-echo "Note: Linting skipped — gate it in CI/pre-commit, not in the deploy script"
+# ───────────────────────────────────────────────────────────────────────────
+# 3. Convex sync check — frontend references match backend functions
+# ───────────────────────────────────────────────────────────────────────────
+echo "=== [3/6] Convex sync check ==="
+cd "$WORKSPACE_ROOT"
+npx --yes @fatagnus/convex-sync-check \
+    --convex-dir packages/convex/convex \
+    --frontend-dir apps/web/src
+echo "✓ Convex sync check passed"
 echo ""
 
-# Run tests (skip for now due to pre-existing test failures)
-echo "=== Skipping tests ==="
-echo "Note: Tests skipped due to pre-existing failures"
+# ───────────────────────────────────────────────────────────────────────────
+# 4. Convex backend deploy
+# ───────────────────────────────────────────────────────────────────────────
+echo "=== [4/6] Convex backend deploy ($ENV) ==="
+cd "$CONVEX_DIR"
+if [[ "$ENV" == "production" ]]; then
+    if [[ -z "${CONVEX_DEPLOY_KEY:-}" ]]; then
+        echo "Error: CONVEX_DEPLOY_KEY is required for production Convex deploy."
+        echo "A production Convex deployment isn't set up yet (TEAMTODO P1)."
+        echo "Get the deploy key from the Convex dashboard once prod is provisioned."
+        exit 1
+    fi
+    npx convex deploy
+else
+    # Staging shares the dev deployment (dev:quirky-sparrow-76).
+    # `convex dev --once` pushes current code and exits.
+    npx convex dev --once
+fi
+echo "✓ Convex backend deployed"
 echo ""
 
-# Build the frontend
-echo "=== Building frontend ==="
+# ───────────────────────────────────────────────────────────────────────────
+# 5. Build frontend
+# ───────────────────────────────────────────────────────────────────────────
+echo "=== [5/6] Building frontend ==="
+cd "$WEB_DIR"
 npm run build
 echo "✓ Build complete"
 echo ""
 
-# Deploy
-echo "=== Deploying to $ENV ==="
+# ───────────────────────────────────────────────────────────────────────────
+# 6. Deploy frontend
+# ───────────────────────────────────────────────────────────────────────────
+echo "=== [6/6] Deploying frontend to $ENV ==="
 $WRANGLER deploy --env "$ENV"
-echo "✓ Deployment complete"
+echo "✓ Frontend deployed"
 echo ""
 
-# Get deployed URL
+# ───────────────────────────────────────────────────────────────────────────
+# Summary
+# ───────────────────────────────────────────────────────────────────────────
 if [[ "$ENV" == "production" ]]; then
     WORKER_NAME="aws-optimizer-web-prod"
 else
     WORKER_NAME="aws-optimizer-web-staging"
 fi
 
-echo "=== Verifying deployment ==="
-echo "Worker name: $WORKER_NAME"
-echo ""
-
-# Wait for deployment to propagate
-echo "Waiting for deployment to propagate (5 seconds)..."
-sleep 5
-
-echo ""
 echo "=== Deployment Summary ==="
 echo "Environment: $ENV"
-echo "Worker: $WORKER_NAME"
+echo "Worker:      $WORKER_NAME"
 echo ""
 echo "Next steps:"
-echo "1. Note the worker URL from the wrangler deploy output above"
-echo "2. Verify health endpoint: curl https://<worker-url>/api/health"
-echo "3. Test the application in your browser"
-echo "4. Verify authentication works correctly"
+echo "1. Note the worker URL from the wrangler output above"
+echo "2. Smoke-test login + a query that hits the Convex backend"
+echo "3. Watch logs: $WRANGLER tail --env $ENV"
 echo ""
