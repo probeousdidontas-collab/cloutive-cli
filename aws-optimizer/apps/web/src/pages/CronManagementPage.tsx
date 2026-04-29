@@ -249,7 +249,7 @@ function CronScheduleBuilder({
   value: string;
   onChange: (expr: string) => void;
 }) {
-  const parsed = useMemo(() => parseCronToBuilder(value), []);
+  const [parsed] = useState(() => parseCronToBuilder(value));
 
   const [frequency, setFrequency] = useState<Frequency>(parsed.frequency);
   const [minuteInterval, setMinuteInterval] = useState(parsed.minuteInterval);

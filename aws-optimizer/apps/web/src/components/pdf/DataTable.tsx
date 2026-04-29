@@ -31,6 +31,8 @@ const styles = StyleSheet.create({
   },
 });
 
+/* eslint-disable @typescript-eslint/no-explicit-any --
+   Polymorphic PDF cell formatter API — callers declare their own value/row types in the lambda. */
 interface Column {
   key: string;
   label: string;
@@ -44,6 +46,7 @@ interface DataTableProps {
   columns: Column[];
   data: Record<string, any>[];
 }
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 export function DataTable({ columns, data }: DataTableProps) {
   return (

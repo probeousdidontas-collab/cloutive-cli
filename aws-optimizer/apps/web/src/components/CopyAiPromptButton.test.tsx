@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { buildBugReportPrompt, buildFeedbackPrompt } from "./CopyAiPromptButton";
+import { buildBugReportPrompt, buildFeedbackPrompt } from "../lib/aiPrompts";
 
 describe("buildBugReportPrompt", () => {
   test("should include title, severity, and description", () => {
